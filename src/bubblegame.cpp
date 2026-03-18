@@ -2501,17 +2501,11 @@ void DoFalling(std::vector<SDL_Point> &map, std::vector<SingleBubble> &bubbles, 
     int shiftSameLine = 0, line = maxy;
     for (size_t i = map.size(); i > 0; i--) { //original FB does backwards sorting for the formula
         int y = map[i - 1].y;
-        if(!lowGfx) {
-            shiftSameLine = line != y ? 0 : shiftSameLine;
-            line = y;
-            bubbles[i - 1].GenerateFreeFall(false, (maxy - y) * 5 + shiftSameLine);
-            singleBubbles.push_back(bubbles[i - 1]);
-            shiftSameLine++;
-            SDL_Log("  Added falling bubble %zu with falling=true", i-1);
-        } else {
-            SDL_Log("  Skipped falling bubble %zu (lowGfx is true, no falling bubbles in low graphics mode)", i-1);
-        }
-
+        shiftSameLine = line != y ? 0 : shiftSameLine;
+        line = y;
+        bubbles[i - 1].GenerateFreeFall(true, (maxy - y) * 5 + shiftSameLine);
+        singleBubbles.push_back(bubbles[i - 1]);
+        shiftSameLine++;
     }
     map.clear();
     bubbles.clear();
