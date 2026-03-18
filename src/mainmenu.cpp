@@ -546,7 +546,8 @@ void MainMenu::HandleInput(SDL_Event *e){
                     break;
                 } else if (e->key.keysym.sym == SDLK_ESCAPE) {
                     showingLocalMPPanel = false;
-                    showingSPPanel = true;
+                    // Return to SP panel only if that's how we got here
+                    // (if entered via 2pgame button, showingSPPanel was already false)
                     AudioMixer::Instance()->PlaySFX("menu_change");
                     break;
                 }
@@ -1161,7 +1162,6 @@ void MainMenu::HandleInput(SDL_Event *e){
                     if (showingLocalMPPanel) {
                         AudioMixer::Instance()->PlaySFX("cancel");
                         showingLocalMPPanel = false;
-                        showingSPPanel = true;
                         break;
                     }
                     if (showingOptPanel || showingNetSetupPanel) {
@@ -1323,7 +1323,10 @@ void MainMenu::SPPanelRender() {
         overlook_init_(overlookSfc);
     }
 
-    SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), singlePanelBG, nullptr, &voidPanelRct);
+    // SP panel needs extra height for SP_OPT items: first item at y=191, each 41px apart, 37px tall
+    // For 5 items: last item bottom = 191 + (SP_OPT-1)*41 + 37 = 392 -> need panel bottom >= 400
+    SDL_Rect spPanelRct = {(640/2) - (341/2), (480/2) - (320/2), 341, 320};
+    SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), singlePanelBG, nullptr, &spPanelRct);
     for (int i = 0; i < SP_OPT; i++){
         int w, h;
         SDL_QueryTexture(idleSPButtons[i], nullptr, nullptr, &w, &h);
