@@ -1,11 +1,32 @@
+/*
+ * Frozen-Bubble SDL2 C++ Port
+ * Copyright (c) 2000-2012 The Frozen-Bubble Team
+ * Copyright (c) 2026 Huy Chau
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
 #ifndef BUBBLEGAME_H
 #define BUBBLEGAME_H
 
 #include "audiomixer.h"
+#include "platform.h"
 #define PI 3.1415926535897932384626433832795028841972
 
 #include <SDL2/SDL.h>
 #include "ttftext.h"
+#include "networkclient.h"
 
 #include <vector>
 #include <array>
@@ -72,22 +93,22 @@ struct Penguin {
         rend = renderer;
         rect = rct;
 
-        char path[256];
+        char rel[256];
         for (int i = 0; i < PENGUIN_HANDLEFC; i++) {
-            sprintf(path, DATA_DIR "/gfx/pinguins/anime-shooter_%s_%04d.png", whichOne, i + 1);
-            handle[i] = IMG_LoadTexture(renderer, path);
+            snprintf(rel, sizeof(rel), "/gfx/pinguins/anime-shooter_%s_%04d.png", whichOne, i + 1);
+            handle[i] = IMG_LoadTexture(renderer, ASSET(rel).c_str());
         }
         for (int i = 0; i < PENGUIN_WAITFC; i++) {
-            sprintf(path, DATA_DIR "/gfx/pinguins/wait_%s_%04d.png", whichOne, i + 1);
-            wait[i] = IMG_LoadTexture(renderer, path);
+            snprintf(rel, sizeof(rel), "/gfx/pinguins/wait_%s_%04d.png", whichOne, i + 1);
+            wait[i] = IMG_LoadTexture(renderer, ASSET(rel).c_str());
         }
         for (int i = 0; i < PENGUIN_WINFC; i++) {
-            sprintf(path, DATA_DIR "/gfx/pinguins/win_%s_%04d.png", whichOne, i + 1);
-            win[i] = IMG_LoadTexture(renderer, path);
+            snprintf(rel, sizeof(rel), "/gfx/pinguins/win_%s_%04d.png", whichOne, i + 1);
+            win[i] = IMG_LoadTexture(renderer, ASSET(rel).c_str());
         }
         for (int i = 0; i < PENGUIN_LOSEFC; i++) {
-            sprintf(path, DATA_DIR "/gfx/pinguins/loose_%s_%04d.png", whichOne, i + 1);
-            lose[i] = IMG_LoadTexture(renderer, path);
+            snprintf(rel, sizeof(rel), "/gfx/pinguins/loose_%s_%04d.png", whichOne, i + 1);
+            lose[i] = IMG_LoadTexture(renderer, ASSET(rel).c_str());
         }
     }
 
@@ -203,13 +224,10 @@ struct Shooter {
     SDL_Rect rect = {};
     SDL_Rect lowRct = {};
 
-    void Render(bool lowGfx){
-        if(!lowGfx) SDL_RenderCopyEx(renderer, texture, nullptr, &rect, (((angle*CANON_ROTATIONS)/(PI/2.0f) + 0.5) - CANON_ROTATIONS), NULL, SDL_FLIP_NONE);
-        else {
-            lowRct.x = (int)((rect.x - LAUNCHER_DIAMETER)  + (LAUNCHER_DIAMETER * cosf(angle)));
-            lowRct.y = (int)((480 - 69) - (LAUNCHER_DIAMETER * sinf(angle)));
-            SDL_RenderCopy(renderer, texture, nullptr, &lowRct);
-        }
+    void Render(bool /*lowGfx*/){
+        // Always render the cannon with rotation regardless of gfx quality
+        double degrees = -(((angle*CANON_ROTATIONS)/(PI/2.0f) + 0.5) - CANON_ROTATIONS);
+        SDL_RenderCopyEx(renderer, texture, nullptr, &rect, degrees, NULL, SDL_FLIP_NONE);
     }
 };
 
@@ -218,6 +236,10 @@ struct SetupSettings {
     int playerCount = 1;
     bool networkGame = false;
     bool randomLevels = false;
+    bool singlePlayerTargetting = false;
+    int startLevel = 1;
+    bool mpTraining = false;  // 1P multiplayer training mode (timed, score-based)
+    bool localMultiplayer = false;  // True for local controller-based multiplayer
 };
 
 struct BubbleArray {
@@ -227,10 +249,32 @@ struct BubbleArray {
     Shooter shooterSprite;
     int playerAssigned, nextBubble, curLaunch, leftLimit, rightLimit, topLimit, numSeparators, turnsToCompress = 9, dangerZone = 12, explodeWait = EXPLODE_FRAMEWAIT,
         frozenWait = FROZEN_FRAMEWAIT, waitPrelight = PRELIGHT_SLOW, prelightTime = waitPrelight, framePrelight = PRELIGHT_FRAMEWAIT, hurryTimer = 0, warnTimer = 0, alertColumn = 0;
+    int score = 0, chainLevel = 0;  // Score tracking and chain reaction multiplier
     bool shooterLeft = false, shooterRight = false, shooterCenter = false, shooterAction = false, newShoot = true, mpWinner = false, mpDone = false;
+
+    // Player state for multiplayer (original: $pdata{$player}{state} and {left})
+    enum class PlayerState { ALIVE, LOST, LEFT };
+    PlayerState playerState = PlayerState::ALIVE;
+    int lobbyPlayerId = -1;  // The lobby/network player ID (for mapping network messages to player arrays)
+    std::string playerNickname = "";  // Player nickname for display
+    int winCount = 0;  // Number of rounds won by this player
+
+    // Network game action flags (original: $actions{$player}{mp_fire} and {mp_stick})
+    bool mpFirePending = false;  // Set to true when we receive 'f' message, cleared after firing
+    float pendingAngle = 0.0f;   // The angle from the 'f' message
+    bool mpStickPending = false; // Set to true when we receive 's' message, cleared after sticking
+    int stickCx = 0, stickCy = 0, stickCol = 0;  // Stick position and color from 's' message
 
     SDL_Rect compressorRct, lGfxShooterRct, curLaunchRct, nextBubbleRct, onTopRct, frozenBottomRct, hurryRct;
     SDL_Texture *hurryTexture;
+    SDL_Point scorePos = {10, 10};  // Score display position (original: $POS{scores})
+
+    // Malus/attack system for multiplayer
+    std::vector<int> malusQueue;  // Queue of malus bubbles to generate (frame numbers when awarded)
+
+    // Perl-compatible next-colors queue (original: $pdata{$player}{nextcolors})
+    // 8 upcoming bubble IDs, synced via 's' messages so all clients agree on new root row colors
+    std::vector<int> nextColors;
 
     std::vector<int> remainingBubbles() {
         std::vector<int> a;
@@ -301,6 +345,14 @@ public:
     void LoadLevelset(const char *path);
     void LoadLevel(int id);
 
+    // Controller management for local multiplayer
+    void InitControllers();
+    void CloseControllers();
+
+    // Network game methods
+    void SendNetworkBubbleShot(BubbleArray &bArray);
+    void ProcessNetworkMessages();
+
     bool playedPause = false;
 private:
     const SDL_Renderer *renderer;
@@ -326,19 +378,42 @@ private:
 
     SDL_Texture *shooterTexture, *miniShooterTexture, *lowShooterTexture, *compressorTexture, *sepCompressorTexture, *onTopTexture, *miniOnTopTexture;
 
+    // "Left" overlay textures for dead remote players (original: $imgbin{left_rp1}, etc.)
+    SDL_Texture *leftRp1, *leftRp1Mini, *leftRp2Mini, *leftRp3Mini, *leftRp4Mini;
+
+    // Single player targeting attack sprites (original: $imgbin{attack}{rp1..4}, $imgbin{attackme}{rp1..4})
+    SDL_Texture *imgAttack[4] = {};    // attack_rp1..4.png - shown on targeted opponent
+    SDL_Texture *imgAttackMe[4] = {};  // attackme_rp1..4.png - shown on local player when targeted
+
     SDL_Rect panelRct;
 
     bool lowGfx = false, gameWon = false, gameLost = false, gameFinish = false, firstRenderDone = false, gameMpDone = false;
+    bool waitingForOpponentNewGame = false; // Waiting for opponent to press key for new game
+    bool opponentReadyForNewGame = false; // Opponent sent 'n' ready signal
 
-    bool chainReaction = false;
-    int timeLeft = 0, curLevel = 1, pauseFrame = 0, nextPauseUpd = 2, idxMPWinner = 0;
+    int curLevel = 1, pauseFrame = 0, nextPauseUpd = 2, idxMPWinner = 0;
     int winsP1 = 0, winsP2 = 0; // 2p mode stuff
     Uint32 timePaused = 0;
+    int comboDisplayTimer = 0; // Timer for showing combo text
+    int frameCount = 0;  // Global frame counter for malus timing
+    int networkFrameCounter = 0; // Frame counter for network ping timing
+
+    // Multiplayer training state
+    Uint32 mpTrainStartTime = 0;  // SDL_GetTicks() when mp_train round started
+    int mpTrainScore = 0;         // Accumulated score (malus destroyed)
+    bool mpTrainDone = false;     // 2-minute timer expired
+
+    // Single player targeting state (original: $pdata{sendmalustoone})
+    int sendMalusToOne = -1;           // -1 = split to all, 1-4 = opponent bubbleArrays index
+    std::vector<int> attackingMe;       // opponent array indices currently targeting local player (p1)
+    bool pendingHighscore = false;      // A new highscore was earned, show screen after level completion
+    std::array<std::vector<int>, 10> savedLevelGrid;  // Level grid saved at load time for highscore display
 
     SetupSettings currentSettings;
     AudioMixer *audMixer;
 
-    TTFText inGameText, winsP1Text, winsP2Text;
+    TTFText inGameText, winsP1Text, winsP2Text, scoreText, comboText, finalScoreText, mpTrainText;
+    TTFText playerNameWinText[5];  // "PlayerName: WinCount" for each player (3-5 player mode)
 
     std::vector<std::array<std::vector<int>, 10>> loadedLevels;
     BubbleArray bubbleArrays[5]; //5 custom arrays wtih different players
@@ -350,19 +425,34 @@ private:
 
     void ExpandNewLane(BubbleArray &bArray);
     void Update2PText();
-    
+    void UpdatePlayerNameWinText();  // Update "PlayerName: WinCount" for 3-5 player mode
+    void UpdateScoreText(BubbleArray &bArray);
+    SDL_Texture** GetBubbleTextures(bool mini = false); // Returns appropriate bubble textures based on colorblind mode and size
+
     void CheckPossibleDestroy(BubbleArray &bArray);
-    void CheckAirBubbles(BubbleArray &bArray);
+    void AssignChainReactions(BubbleArray &bArray);  // Assign chain reaction targets to falling bubbles (original line 814-865)
+    int CheckAirBubbles(BubbleArray &bArray);  // Returns falling bubble count
+    void SendMalusToOpponent(int malusCount);   // Send malus attack to opponent
+    void SetSendMalusToOne(int opponentIdx);    // Set/clear single-player targeting (original: set_sendmalustoone)
+    void ProcessMalusQueue(BubbleArray &bArray, int currentFrame);  // Generate malus bubbles from queue
     void CheckGameState(BubbleArray &bArray);
+    int CountLivingPlayers();  // Count players still alive (original: living_players() at line 600)
+    void HandlePlayerLoss(BubbleArray &bArray);  // Handle player death and check win conditions
 
     void DoFrozenAnimation(BubbleArray &bArray, int &waitTime);
     void DoWinAnimation(BubbleArray &bArray, int &waitTime);
     void DoPrelightAnimation(BubbleArray &bArray, int &waitTime);
 
     void RandomLevel(BubbleArray &bArray);
+    void SyncNetworkLevel();  // Synchronize level for network multiplayer
     void ReloadGame(int level);
+    void SubmitScore(BubbleArray &bArray);
 
     void QuitToTitle();
+
+    // Controllers for local multiplayer (up to 5 players)
+    SDL_GameController* controllers[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
+    int numControllersOpen = 0;
 };
 
 #endif // BUBBLEGAME_H

@@ -19,3 +19,40 @@ You need to obtain the following libraries:
 Make sure these are detected by CMake. After that, you're ready to compile!
 You will be able to compile the server-related code if you're trying to compile for macOS and Linux.
 For the moment, the DATA_DIR path is fixed to the path of the repository, unless you specify your own path.
+
+# Game Modes
+
+## Single Player
+Classic Frozen Bubble gameplay with chain reactions and scoring system.
+
+## 2-Player Local (LAN Game)
+- Select "LAN game" or "2-player game" from menu
+- Two players on same computer with different keyboard controls
+- Player 1: Arrow keys
+- Player 2: C/X/V/D keys
+
+## Network Multiplayer
+Complete online multiplayer with integrated server hosting.
+
+### Quick Start - Network Play
+
+**Easiest way (host in-game):**
+1. Launch game and select "Network game"
+2. Press **H** to host (auto-starts server)
+3. Press ENTER, then C to create game, S to start
+4. Other players: Press **J** to join, enter your IP
+
+**Alternative (manual server):**
+```bash
+./start-server.sh -d    # Run with debug output
+```
+
+See [NETWORK_PLAY.md](NETWORK_PLAY.md) for detailed documentation.
+
+### Server Options
+```bash
+./start-server.sh -h           # Show help
+./start-server.sh -p 1234      # Custom port
+./start-server.sh -d           # Debug mode
+./start-server.sh -l           # LAN discovery
+```

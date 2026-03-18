@@ -1,4 +1,24 @@
+/*
+ * Frozen-Bubble SDL2 C++ Port
+ * Copyright (c) 2000-2012 The Frozen-Bubble Team
+ * Copyright (c) 2026 Huy Chau
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
 #include "audiomixer.h"
+#include "platform.h"
 
 const struct MusicFile
 {
@@ -34,11 +54,11 @@ AudioMixer::AudioMixer()
 
 Mix_Chunk* AudioMixer::GetSFX(const char *sfx){
     if(sfxFiles[sfx] == nullptr) {
-        char path[256];
-        sprintf(path, DATA_DIR "/snd/%s.ogg", sfx);
-        sfxFiles[sfx] = Mix_LoadWAV(path);
+        char rel[128];
+        snprintf(rel, sizeof(rel), "/snd/%s.ogg", sfx);
+        sfxFiles[sfx] = Mix_LoadWAV(ASSET(rel).c_str());
     }
-    
+
     return sfxFiles[sfx];
 }
 
@@ -59,12 +79,12 @@ void AudioMixer::PlayMusic(const char *track)
     SDL_Delay(400);
     while (Mix_PlayingMusic()) SDL_Delay(10);
     
-    std::string path(std::string(DATA_DIR));
+    std::string path;
     for (const MusicFile &musFile: musicFiles)
     {
         if (0 == strcmp(track, musFile.id))
         {
-            path += musFile.file;
+            path = ASSET(musFile.file);
             break;
         }
     }

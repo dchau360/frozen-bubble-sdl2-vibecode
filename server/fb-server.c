@@ -18,9 +18,22 @@
  ******************************************************************************/
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <signal.h>
 #include "net.h"
 #include "game.h"
 #include "tools.h"
+#include "stats.h"
+
+static void cleanup_atexit(void)
+{
+        stats_cleanup();
+}
+
+static void setup_signal_handlers(void)
+{
+        atexit(cleanup_atexit);
+}
 
 int main(int argc, char **argv)
 {
@@ -30,6 +43,10 @@ int main(int argc, char **argv)
         printf("This is free software; see the source for copying conditions.  There is NO\n");
         printf("warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n");
         printf("\n");
+
+        // Initialize stats system
+        stats_init();
+        setup_signal_handlers();
 
         create_server(argc, argv);
         daemonize();

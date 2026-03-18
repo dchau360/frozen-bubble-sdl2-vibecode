@@ -1,3 +1,22 @@
+/*
+ * Frozen-Bubble SDL2 C++ Port
+ * Copyright (c) 2000-2012 The Frozen-Bubble Team
+ * Copyright (c) 2026 Huy Chau
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
 #ifndef MAINMENU_H
 #define MAINMENU_H
 
@@ -5,6 +24,7 @@
 #include <vector>
 
 #include "menubutton.h"
+#include "networkclient.h"
 #include "shaderstuff.h"
 #include "ttftext.h"
 
@@ -20,7 +40,7 @@
 #define BLINK_FRAMES 5
 #define BLINK_SLOWDOWN 30
 
-#define SP_OPT 4
+#define SP_OPT 5
 
 class MainMenu final
 {
@@ -34,6 +54,7 @@ public:
     void SetupNewGame(int mode);
     void ShowPanel(int which);
     void ReturnToMenu();
+    void ReturnToNetLobby();  // Return to network lobby after quitting a network game
 private:
     const SDL_Renderer *renderer;
     std::vector<MenuButton> buttons;
@@ -59,8 +80,6 @@ private:
     //blink
     SDL_Rect blink_green_left, blink_green_right, blink_purple_left, blink_purple_right;
     int blinkGreen = 0, blinkPurple = 0, waitGreen = 0, waitPurple = 0;
-    int blinkUpdate = BLINK_FRAMES;
-    bool canUpdateBlink;
 
     //rest
     uint8_t active_button_index;
@@ -86,7 +105,7 @@ private:
     const struct spPanelEntry {
         std::string option;
         int pivot;
-    } spOptions[SP_OPT] = {{"play_all_levels", 90}, {"pick_start_level", 135}, {"play_random_levels", 82}, {"multiplayer_training", 105}};
+    } spOptions[SP_OPT] = {{"play_all_levels", 90}, {"pick_start_level", 135}, {"play_random_levels", 82}, {"multiplayer_training", 105}, {"local_multiplayer", 100}};
     
     SDL_Rect voidPanelRct = {(640/2) - (341/2), (480/2) - (280/2), 341, 280};
     void SPPanelRender();
@@ -99,9 +118,83 @@ private:
     SDL_Texture *voidPanelBG;
     void OptPanelRender();
 
+    // Pick start level panel
+    bool showingLevelPanel = false;
+    std::string levelInput;
+    int pickedStartLevel = 1;
+    void LevelPanelRender();
+
+    //Keys panel render
+    bool showingKeysPanel = false;
+    int keyConfigPlayer = 1; // 1 or 2
+    int keyConfigIndex = 0; // 0=left, 1=right, 2=fire, 3=center
+    void KeysPanelRender();
+
+    // LAN server discovery
+    bool isLANGame = false;
+    std::vector<ServerInfo> discoveredServers;
+    int selectedServerIndex = 0;
+    int lanMenuIndex = 0; // 0 = "Host a server", 1+ = discovered servers
+
+    // Net game public server list (mode 10)
+    std::vector<ServerInfo> publicServers;
+    int netMenuIndex = 0; // 0 = "Manual entry", 1+ = public servers
+
+    //Network panel render
+    bool showingNetPanel = false;
+    bool showingNetSetupPanel = false; // For chain reaction prompt before network lobby
+    bool networkInLobby = false;
+    bool networkGameStarting = false; // Track if game start has been initiated
+    bool serverHosting = false;
+    int serverPid = -1;
+    char networkHost[256] = "127.0.0.1";
+    int networkPort = 1511;
+    int networkInputMode = 0; // 0 = lobby main, 1 = port input, 2 = host/join choice, 3 = join game, 4 = chat input, 5 = username input, 6 = create confirm, 11 = pre-lobby nickname
+    std::string connectErrorMsg;
+    char networkJoinCreator[32] = "";
+    char networkChatInput[256] = "";
+    char networkUsername[32] = "";
+    char networkPreNick[32] = "";   // Nickname set before connecting (on server selection screen)
+    int networkPreNickReturnMode = 7; // Mode to return to after editing pre-lobby nickname
+    int selectedGameIndex = -1; // For game list selection
+    int selectedActionIndex = 0; // Currently selected action in lobby (0=chat, 1=create, 2+=games)
+    Uint32 lastListRequest = 0; // Timestamp of last LIST request
+    TTFText networkText;
+
+    // Game settings (when hosting)
+    bool chainReactionEnabled = true;
+    bool continueWhenPlayersLeave = true;
+    bool singlePlayerTargetting = true;
+    int victoriesLimitIndex = 5; // 0=none, 1=1, 2=2, 3=3, 4=4, 5=5, etc.
+
+    // World map lobby graphics
+    SDL_Texture *netGameBackground = nullptr;
+    SDL_Texture *netSpotFree = nullptr;
+    SDL_Texture *netSpotInGame = nullptr;
+    SDL_Texture *netSpotPlaying = nullptr;
+    SDL_Texture *netSpotSelf[13]; // Animated self spot
+    SDL_Texture *highlightServer = nullptr;
+
+    void NetPanelRender();
+    void NetSetupPanelRender(); // Chain reaction prompt for network games
+    void StartLocalServer();
+    void StopLocalServer();
+
     //game setup defines
     bool chainReaction = false;
     int selectedMode;
+
+    // 2-player game setup menu
+    int twoPlayerMenuIndex = 0; // Currently selected menu item in 2P setup
+    bool twoPlayerCR = true; // Chain reaction for 2P game
+    int twoPlayerVictoriesIndex = 5; // Victories limit for 2P game (same as network)
+
+    // Local multiplayer setup panel
+    bool showingLocalMPPanel = false;
+    int localMPMenuIndex = 0;   // 0=player count, 1=chain reaction, 2=start
+    int localMPPlayerCount = 2; // 2-5 players
+    bool localMPCR = true;      // Chain reaction enabled
+    void LocalMPPanelRender();
 };
 
 #endif // MAINMENU_H

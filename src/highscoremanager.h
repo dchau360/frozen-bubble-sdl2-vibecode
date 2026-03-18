@@ -1,3 +1,22 @@
+/*
+ * Frozen-Bubble SDL2 C++ Port
+ * Copyright (c) 2000-2012 The Frozen-Bubble Team
+ * Copyright (c) 2026 Huy Chau
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
 #ifndef HIGHSCOREMANAGER_H
 #define HIGHSCOREMANAGER_H
 
@@ -24,15 +43,12 @@ public:
     int lastState;
 
     void AppendToLevels(std::array<std::vector<int>, 10> lvl, int id);
+    bool CheckAndAddScore(int level, float time);  // Returns true if this is a new high score
 
     HighscoreManager(const HighscoreManager& obj) = delete;
     void Dispose();
     static HighscoreManager* Instance(SDL_Renderer *rend = nullptr);
 private:
-    enum ScoreScreen {
-        Levelset = 0,
-        Multiplayer = 1
-    } scoreScreen = Levelset;
     int curMode;
 
     GameSettings *gameSettings;
@@ -56,7 +72,7 @@ private:
     std::string newName;
     int textTickWait = TEXTANIM_TICKSPEED;
 
-    bool levelsetOnly = true, awaitKeyType = false, showTick = true;
+    bool awaitKeyType = false, showTick = true;
 
     HighscoreManager(SDL_Renderer *rend);
     ~HighscoreManager();

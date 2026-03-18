@@ -17,12 +17,28 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#define SDL_MAIN_HANDLED
-#include "platform.h"
-#include "frozenbubble.h"
+#pragma once
 
-int main(int, char **) {
-    InitDataDir();
-    FrozenBubble *frozenBubble = FrozenBubble::Instance();
-    return frozenBubble->RunForEver();
-}
+#include <SDL2/SDL.h>
+#include <stdio.h>
+#include <time.h>
+
+class Logger {
+private:
+    static FILE* logFile;
+    static bool initialized;
+
+    static void LogOutputCallback(void* userdata, int category, SDL_LogPriority priority, const char* message);
+    static const char* GetCategoryName(int category);
+    static const char* GetPriorityName(SDL_LogPriority priority);
+
+public:
+    // Initialize the logger (call this once at startup)
+    static bool Initialize(const char* logFilePath = nullptr);
+
+    // Shutdown the logger (call this at program exit)
+    static void Shutdown();
+
+    // Check if logger is initialized
+    static bool IsInitialized() { return initialized; }
+};

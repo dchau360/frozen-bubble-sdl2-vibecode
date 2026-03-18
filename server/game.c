@@ -37,6 +37,7 @@
 #include "tools.h"
 #include "log.h"
 #include "game.h"
+#include "stats.h"
 
 enum game_status { GAME_STATUS_OPEN, GAME_STATUS_CLOSED, GAME_STATUS_PLAYING };
 
@@ -872,6 +873,8 @@ void player_part_game_(int fd, char* reason)
                 char * save_nick;
                 int j;
                 int i = find_player_number(g, fd);
+                int was_playing = (g->status == GAME_STATUS_PLAYING);
+                int leaving_player_index = i;
 
                 // remove parting player from game
                 save_nick = g->players_nick[i];
@@ -881,10 +884,18 @@ void player_part_game_(int fd, char* reason)
                         g->players_started[j] = g->players_started[j + 1];
                 }
                 g->players_number--;
-                
+
                 // completely remove game if empty
                 if (g->players_number == 0) {
                         int was_running = g->status == GAME_STATUS_PLAYING;
+
+                        // Record win for the last remaining player (if game was in progress)
+                        if (was_running && g->players_number == 0 && leaving_player_index >= 0) {
+                                // This was the last player - they win by default (others already left)
+                                stats_record_win(save_nick);
+                                l1(OUTPUT_TYPE_INFO, "Game ended: %s wins (last player remaining)", save_nick);
+                        }
+
                         games = g_list_remove(games, g);
                         free(g);
                         calculate_list_games();
@@ -897,6 +908,17 @@ void player_part_game_(int fd, char* reason)
                                 char leave_player_prio_msg[] = "?l\n";
                                 leave_player_prio_msg[0] = fd;
                                 process_msg_prio_(fd, leave_player_prio_msg, strlen(leave_player_prio_msg), g);
+
+                                // Record loss for the leaving player (they left during gameplay)
+                                stats_record_loss(save_nick);
+                                l1(OUTPUT_TYPE_INFO, "Player %s left during game - recorded as loss", save_nick);
+
+                                // If this was the last player to leave (only 1 remains), the remaining player wins
+                                if (g->players_number == 1) {
+                                        char* winner_nick = g->players_nick[0];
+                                        stats_record_win(winner_nick);
+                                        l1(OUTPUT_TYPE_INFO, "Game ended: %s wins (last player remaining)", winner_nick);
+                                }
                         } else {
                                 char parted_msg[1000];
                                 // inform other players, non-playing state

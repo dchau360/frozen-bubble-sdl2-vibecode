@@ -61,6 +61,9 @@ add_executable(frozen-bubble-sdl2
     src/transitionmanager.cpp
     src/ttftext.cpp
     src/highscoremanager.cpp
+    src/networkclient.cpp
+    src/logger.cpp
+    src/platform.cpp
     ${RES_FILES}
 )
 
@@ -73,9 +76,13 @@ endif()
 
 message("Asset path is: ${ASSET_PATH}")
 
-target_compile_definitions(frozen-bubble-sdl2
-    PRIVATE DATA_DIR=\"${ASSET_PATH}\"
-)
+if(ANDROID)
+    # Android TV build configuration
+    target_compile_definitions(frozen-bubble-sdl2 PRIVATE __ANDROID_PORT__)
+    # DATA_DIR not needed on Android - assets loaded via asset manager
+else()
+    target_compile_definitions(frozen-bubble-sdl2 PRIVATE DATA_DIR=\"${ASSET_PATH}\")
+endif()
 
 target_include_directories(frozen-bubble-sdl2
     SYSTEM
@@ -92,3 +99,44 @@ target_link_libraries(frozen-bubble-sdl2 PRIVATE
     SDL2_mixer::SDL2_mixer
     SDL2_ttf::SDL2_ttf
 )
+
+# Installation configuration
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    if(APPLE)
+        set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "Install path prefix" FORCE)
+    elseif(UNIX)
+        set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "Install path prefix" FORCE)
+    endif()
+endif()
+
+# Install executable
+install(TARGETS frozen-bubble-sdl2
+    RUNTIME DESTINATION bin
+    COMPONENT runtime
+)
+
+# Install game assets
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/share/
+    DESTINATION share/frozen-bubble
+    COMPONENT assets
+    PATTERN ".DS_Store" EXCLUDE
+    PATTERN "*.md" EXCLUDE
+)
+
+# Set asset path for installed version
+if(CMAKE_INSTALL_PREFIX)
+    set(INSTALLED_ASSET_PATH "${CMAKE_INSTALL_PREFIX}/share/frozen-bubble")
+    message(STATUS "Installed assets will be at: ${INSTALLED_ASSET_PATH}")
+endif()
+
+# Add uninstall target
+if(NOT TARGET uninstall)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+        IMMEDIATE @ONLY
+    )
+    add_custom_target(uninstall
+        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
+    )
+endif()
