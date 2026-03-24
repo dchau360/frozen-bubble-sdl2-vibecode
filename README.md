@@ -22,19 +22,50 @@ Play over LAN or internet using the included server. Supports chain reactions, m
 
 ---
 
-## Building
+## Building from Source
 
-**Dependencies:**
-- SDL2, SDL2_image, SDL2_mixer, SDL2_ttf
-- [iniparser](https://github.com/ndevilla/iniparser)
-- CMake 3.16+
+### 1. Clone the repo
 
 ```bash
-cmake -B build
-cmake --build build
+git clone https://github.com/dchau360/frozen-bubble-sdl2.git
+cd frozen-bubble-sdl2
 ```
 
-The server binary (`fb-server`) is built automatically on Linux and macOS.
+### 2. Install dependencies
+
+**macOS (Homebrew):**
+```bash
+brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf cmake ninja
+```
+
+**Ubuntu / Debian:**
+```bash
+sudo apt install libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev cmake ninja-build
+```
+
+**Windows (MSYS2 MinGW64):**
+```bash
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja \
+          mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_image \
+          mingw-w64-x86_64-SDL2_mixer mingw-w64-x86_64-SDL2_ttf
+```
+
+> `iniparser` is bundled — no separate install needed.
+
+### 3. Build
+
+```bash
+cmake -B build -G Ninja
+cmake --build build --parallel
+```
+
+### 4. Run
+
+```bash
+./build/frozen-bubble-sdl2
+```
+
+The server binary (`fb-server`) is built automatically on Linux and macOS alongside the game.
 
 ---
 
