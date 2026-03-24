@@ -931,6 +931,10 @@ void BubbleGame::NewGame(SetupSettings setup) {
             bubbleArrays[0].rightLimit = 446;
             bubbleArrays[0].topLimit = 44;
             bubbleArrays[0].hurryRct = {10, 265, 244, 102};
+            bubbleArrays[0].curLaunchRct = {302, 390, 32, 32};
+            bubbleArrays[0].nextBubbleRct = {112, 440, 32, 32};
+            bubbleArrays[0].onTopRct = {108, 437, 39, 39};
+            bubbleArrays[0].frozenBottomRct = {108, 437, 39, 39};
             bubbleArrays[0].numSeparators = 0;
             bubbleArrays[0].playerAssigned = 0;
             bubbleArrays[0].turnsToCompress = 12;
@@ -950,6 +954,10 @@ void BubbleGame::NewGame(SetupSettings setup) {
             bubbleArrays[1].rightLimit = 148;
             bubbleArrays[1].topLimit = 19;
             bubbleArrays[1].hurryRct = {5, 128, 122, 51};
+            bubbleArrays[1].curLaunchRct = {68, 192, 32, 32};
+            bubbleArrays[1].nextBubbleRct = {56, 216, 32, 32};
+            bubbleArrays[1].onTopRct = {54, 214, 39, 39};
+            bubbleArrays[1].frozenBottomRct = {54, 214, 39, 39};
             bubbleArrays[1].numSeparators = 0;
             bubbleArrays[1].playerAssigned = 1;
             bubbleArrays[1].turnsToCompress = 12;
@@ -969,6 +977,10 @@ void BubbleGame::NewGame(SetupSettings setup) {
             bubbleArrays[2].rightLimit = 620;
             bubbleArrays[2].topLimit = 19;
             bubbleArrays[2].hurryRct = {5, 128, 122, 51};
+            bubbleArrays[2].curLaunchRct = {540, 192, 32, 32};
+            bubbleArrays[2].nextBubbleRct = {548, 216, 32, 32};
+            bubbleArrays[2].onTopRct = {546, 214, 39, 39};
+            bubbleArrays[2].frozenBottomRct = {546, 214, 39, 39};
             bubbleArrays[2].numSeparators = 0;
             bubbleArrays[2].playerAssigned = 2;
             bubbleArrays[2].turnsToCompress = 12;
@@ -1021,6 +1033,10 @@ void BubbleGame::NewGame(SetupSettings setup) {
             bubbleArrays[0].rightLimit = 446;
             bubbleArrays[0].topLimit = 44;
             bubbleArrays[0].hurryRct = {10, 265, 244, 102};
+            bubbleArrays[0].curLaunchRct = {302, 390, 32, 32};
+            bubbleArrays[0].nextBubbleRct = {112, 440, 32, 32};
+            bubbleArrays[0].onTopRct = {108, 437, 39, 39};
+            bubbleArrays[0].frozenBottomRct = {108, 437, 39, 39};
             bubbleArrays[0].numSeparators = 0;
             bubbleArrays[0].playerAssigned = 0;
             bubbleArrays[0].turnsToCompress = 12;
@@ -1040,6 +1056,10 @@ void BubbleGame::NewGame(SetupSettings setup) {
             bubbleArrays[1].rightLimit = 148;
             bubbleArrays[1].topLimit = 19;
             bubbleArrays[1].hurryRct = {5, 128, 122, 51};
+            bubbleArrays[1].curLaunchRct = {68, 192, 32, 32};
+            bubbleArrays[1].nextBubbleRct = {56, 216, 32, 32};
+            bubbleArrays[1].onTopRct = {54, 214, 39, 39};
+            bubbleArrays[1].frozenBottomRct = {54, 214, 39, 39};
             bubbleArrays[1].numSeparators = 0;
             bubbleArrays[1].playerAssigned = 1;
             bubbleArrays[1].turnsToCompress = 12;
@@ -1059,6 +1079,10 @@ void BubbleGame::NewGame(SetupSettings setup) {
             bubbleArrays[2].rightLimit = 620;
             bubbleArrays[2].topLimit = 19;
             bubbleArrays[2].hurryRct = {5, 128, 122, 51};
+            bubbleArrays[2].curLaunchRct = {540, 192, 32, 32};
+            bubbleArrays[2].nextBubbleRct = {548, 216, 32, 32};
+            bubbleArrays[2].onTopRct = {546, 214, 39, 39};
+            bubbleArrays[2].frozenBottomRct = {546, 214, 39, 39};
             bubbleArrays[2].numSeparators = 0;
             bubbleArrays[2].playerAssigned = 2;
             bubbleArrays[2].turnsToCompress = 12;
@@ -1311,16 +1335,28 @@ void BubbleGame::ReloadGame(int level) {
             bubbleArrays[0].bubbleOffset = {190, 44};
             bubbleArrays[0].turnsToCompress = 12;
             bubbleArrays[0].numSeparators = 0;
+            bubbleArrays[0].curLaunchRct = {302, 390, 32, 32};
+            bubbleArrays[0].nextBubbleRct = {112, 440, 32, 32};
+            bubbleArrays[0].onTopRct = {108, 437, 39, 39};
+            bubbleArrays[0].frozenBottomRct = {108, 437, 39, 39};
 
             bubbleArrays[1].shooterSprite.angle = PI/2.0f;
             bubbleArrays[1].bubbleOffset = {20, 19};
             bubbleArrays[1].turnsToCompress = 12;
             bubbleArrays[1].numSeparators = 0;
+            bubbleArrays[1].curLaunchRct = {68, 192, 32, 32};
+            bubbleArrays[1].nextBubbleRct = {56, 216, 32, 32};
+            bubbleArrays[1].onTopRct = {54, 214, 39, 39};
+            bubbleArrays[1].frozenBottomRct = {54, 214, 39, 39};
 
             bubbleArrays[2].shooterSprite.angle = PI/2.0f;
             bubbleArrays[2].bubbleOffset = {492, 19};
             bubbleArrays[2].turnsToCompress = 12;
             bubbleArrays[2].numSeparators = 0;
+            bubbleArrays[2].curLaunchRct = {540, 192, 32, 32};
+            bubbleArrays[2].nextBubbleRct = {548, 216, 32, 32};
+            bubbleArrays[2].onTopRct = {546, 214, 39, 39};
+            bubbleArrays[2].frozenBottomRct = {546, 214, 39, 39};
 
             bubbleArrays[3].shooterSprite.angle = PI/2.0f;
             bubbleArrays[3].bubbleOffset = {20, 247};
@@ -1336,16 +1372,28 @@ void BubbleGame::ReloadGame(int level) {
             bubbleArrays[0].bubbleOffset = {190, 44};
             bubbleArrays[0].turnsToCompress = 12;
             bubbleArrays[0].numSeparators = 0;
+            bubbleArrays[0].curLaunchRct = {302, 390, 32, 32};
+            bubbleArrays[0].nextBubbleRct = {112, 440, 32, 32};
+            bubbleArrays[0].onTopRct = {108, 437, 39, 39};
+            bubbleArrays[0].frozenBottomRct = {108, 437, 39, 39};
 
             bubbleArrays[1].shooterSprite.angle = PI/2.0f;
             bubbleArrays[1].bubbleOffset = {20, 19};
             bubbleArrays[1].turnsToCompress = 12;
             bubbleArrays[1].numSeparators = 0;
+            bubbleArrays[1].curLaunchRct = {68, 192, 32, 32};
+            bubbleArrays[1].nextBubbleRct = {56, 216, 32, 32};
+            bubbleArrays[1].onTopRct = {54, 214, 39, 39};
+            bubbleArrays[1].frozenBottomRct = {54, 214, 39, 39};
 
             bubbleArrays[2].shooterSprite.angle = PI/2.0f;
             bubbleArrays[2].bubbleOffset = {492, 19};
             bubbleArrays[2].turnsToCompress = 12;
             bubbleArrays[2].numSeparators = 0;
+            bubbleArrays[2].curLaunchRct = {540, 192, 32, 32};
+            bubbleArrays[2].nextBubbleRct = {548, 216, 32, 32};
+            bubbleArrays[2].onTopRct = {546, 214, 39, 39};
+            bubbleArrays[2].frozenBottomRct = {546, 214, 39, 39};
 
             bubbleArrays[3].shooterSprite.angle = PI/2.0f;
             bubbleArrays[3].bubbleOffset = {20, 247};

@@ -659,12 +659,8 @@ void MainMenu::HandleInput(SDL_Event *e){
 
                             int maxActions;
                             if (currentGame && currentGame->creator == netClient->GetPlayerNick()) {
-                                // Host in game: Chat(1) + CR/Continue/Target/Victories(4) + Colors per player + Start(1)
-                                int numPlayers = (int)currentGame->players.size();
-                                if (numPlayers < 1) numPlayers = 1;
-                                if (numPlayers > 5) numPlayers = 5;
-                                maxActions = 5 + 3 * numPlayers; // Chat + 4 settings + N*3 per-player settings
-                                if (currentGame->players.size() > 1) maxActions++; // + Start game
+                                // Host: Chat + 4 global + 3 grid rows + optional Start
+                                maxActions = 8 + ((int)currentGame->players.size() > 1 ? 1 : 0);
                             } else if (currentGame) {
                                 // Non-host in game
                                 maxActions = 1; // Just Chat (use ESC to leave)
@@ -708,12 +704,8 @@ void MainMenu::HandleInput(SDL_Event *e){
 
                             int maxActions;
                             if (currentGame && currentGame->creator == netClient->GetPlayerNick()) {
-                                // Host in game: Chat(1) + CR/Continue/Target/Victories(4) + Colors per player + Start(1)
-                                int numPlayers = (int)currentGame->players.size();
-                                if (numPlayers < 1) numPlayers = 1;
-                                if (numPlayers > 5) numPlayers = 5;
-                                maxActions = 5 + 3 * numPlayers; // Chat + 4 settings + N*3 per-player settings
-                                if (currentGame->players.size() > 1) maxActions++; // + Start game
+                                // Host: Chat + 4 global + 3 grid rows + optional Start
+                                maxActions = 8 + ((int)currentGame->players.size() > 1 ? 1 : 0);
                             } else if (currentGame) {
                                 // Non-host in game
                                 maxActions = 1; // Just Chat (use ESC to leave)
@@ -762,35 +754,19 @@ void MainMenu::HandleInput(SDL_Event *e){
                                 }
                                 AudioMixer::Instance()->PlaySFX("menu_change");
                                 settingChanged = true;
-                            } else if (selectedActionIndex >= 5) {
+                            } else if (selectedActionIndex >= 5 && selectedActionIndex <= 7) {
+                                // Grid rows 5/6/7: Left/Right navigates player columns
                                 int numPlayers = (int)currentGame->players.size();
                                 if (numPlayers < 1) numPlayers = 1;
                                 if (numPlayers > 5) numPlayers = 5;
-                                if (selectedActionIndex < 5 + numPlayers) {
-                                    // Per-player color count (indices 5..5+N-1)
-                                    int pi = selectedActionIndex - 5;
-                                    if (e->key.keysym.sym == SDLK_LEFT) {
-                                        playerColorCounts[pi]--;
-                                        if (playerColorCounts[pi] < 5) playerColorCounts[pi] = 8;
-                                    } else {
-                                        playerColorCounts[pi]++;
-                                        if (playerColorCounts[pi] > 8) playerColorCounts[pi] = 5;
-                                    }
-                                    AudioMixer::Instance()->PlaySFX("menu_change");
-                                    settingChanged = true;
-                                } else if (selectedActionIndex < 5 + 2 * numPlayers) {
-                                    // Per-player compression toggle (indices 5+N..5+2N-1)
-                                    int pi = selectedActionIndex - (5 + numPlayers);
-                                    playerNoCompress[pi] = !playerNoCompress[pi];
-                                    AudioMixer::Instance()->PlaySFX("menu_change");
-                                    settingChanged = true;
-                                } else if (selectedActionIndex < 5 + 3 * numPlayers) {
-                                    // Per-player aim guide toggle (indices 5+2N..5+3N-1)
-                                    int pi = selectedActionIndex - (5 + 2 * numPlayers);
-                                    playerAimGuide[pi] = !playerAimGuide[pi];
-                                    AudioMixer::Instance()->PlaySFX("menu_change");
-                                    settingChanged = true;
+                                if (e->key.keysym.sym == SDLK_LEFT) {
+                                    currentPlayerCol--;
+                                    if (currentPlayerCol < 0) currentPlayerCol = numPlayers - 1;
+                                } else {
+                                    currentPlayerCol++;
+                                    if (currentPlayerCol >= numPlayers) currentPlayerCol = 0;
                                 }
+                                AudioMixer::Instance()->PlaySFX("menu_change");
                             }
                             if (settingChanged) {
                                 static const int vLimits[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,15,20,30,50,100};
@@ -885,7 +861,6 @@ void MainMenu::HandleInput(SDL_Event *e){
                                     int numPlayers = currentGame ? (int)currentGame->players.size() : 1;
                                     if (numPlayers < 1) numPlayers = 1;
                                     if (numPlayers > 5) numPlayers = 5;
-                                    int startIdx = 5 + 3 * numPlayers; // Start game index
                                     bool settingChanged = false;
                                     if (selectedActionIndex == 1) {
                                         // Toggle chain reaction
@@ -908,27 +883,24 @@ void MainMenu::HandleInput(SDL_Event *e){
                                         if (victoriesLimitIndex > 17) victoriesLimitIndex = 0; // 18 values total
                                         AudioMixer::Instance()->PlaySFX("menu_change");
                                         settingChanged = true;
-                                    } else if (selectedActionIndex >= 5 && selectedActionIndex < 5 + numPlayers) {
-                                        // Cycle per-player color count (Enter increments)
-                                        int pi = selectedActionIndex - 5;
-                                        playerColorCounts[pi]++;
-                                        if (playerColorCounts[pi] > 8) playerColorCounts[pi] = 5;
+                                    } else if (selectedActionIndex == 5) {
+                                        // Cycle per-player color count for focused column
+                                        playerColorCounts[currentPlayerCol]++;
+                                        if (playerColorCounts[currentPlayerCol] > 8) playerColorCounts[currentPlayerCol] = 5;
                                         AudioMixer::Instance()->PlaySFX("menu_change");
                                         settingChanged = true;
-                                    } else if (selectedActionIndex >= 5 + numPlayers && selectedActionIndex < 5 + 2 * numPlayers) {
-                                        // Toggle per-player compression (Enter toggles)
-                                        int pi = selectedActionIndex - (5 + numPlayers);
-                                        playerNoCompress[pi] = !playerNoCompress[pi];
+                                    } else if (selectedActionIndex == 6) {
+                                        // Toggle per-player compression for focused column
+                                        playerNoCompress[currentPlayerCol] = !playerNoCompress[currentPlayerCol];
                                         AudioMixer::Instance()->PlaySFX("menu_change");
                                         settingChanged = true;
-                                    } else if (selectedActionIndex >= 5 + 2 * numPlayers && selectedActionIndex < 5 + 3 * numPlayers) {
-                                        // Toggle per-player aim guide (Enter toggles)
-                                        int pi = selectedActionIndex - (5 + 2 * numPlayers);
-                                        playerAimGuide[pi] = !playerAimGuide[pi];
+                                    } else if (selectedActionIndex == 7) {
+                                        // Toggle per-player aim guide for focused column
+                                        playerAimGuide[currentPlayerCol] = !playerAimGuide[currentPlayerCol];
                                         AudioMixer::Instance()->PlaySFX("menu_change");
                                         settingChanged = true;
-                                    } else if (selectedActionIndex == startIdx && currentGame && currentGame->players.size() > 1) {
-                                        // Start game (only shown if >1 player)
+                                    } else if (selectedActionIndex == 8 && currentGame && currentGame->players.size() > 1) {
+                                        // Start game (index 8, fixed regardless of player count)
                                         netClient->StartGame();
                                         netClient->AddStatusMessage("Starting game...");
                                         AudioMixer::Instance()->PlaySFX("menu_selected");
@@ -1824,91 +1796,28 @@ void MainMenu::NetPanelRender() {
 
         if (currentGame) {
             // In a game room - show game options
-            actions.push_back("Chat");
+            actions.push_back("Chat");  // index 0
 
-            if (currentGame->creator == netClient->GetPlayerNick()) {
-                // You're the host - show game settings
-                char crText[64], continueText[64], targetText[64], victoriesText[64];
-                snprintf(crText, sizeof(crText), "Chain-reaction: %s", chainReactionEnabled ? "enabled" : "disabled");
-                snprintf(continueText, sizeof(continueText), "Continue when players leave: %s", continueWhenPlayersLeave ? "enabled" : "disabled");
-                snprintf(targetText, sizeof(targetText), "Single player targetting: %s", singlePlayerTargetting ? "enabled" : "disabled");
+            // Global settings (indices 1-4) - same for host and joiner
+            char crText[64], continueText[64], targetText[64], victoriesText[64];
+            snprintf(crText, sizeof(crText), "Chain-reaction: %s", chainReactionEnabled ? "enabled" : "disabled");
+            snprintf(continueText, sizeof(continueText), "Continue when players leave: %s", continueWhenPlayersLeave ? "enabled" : "disabled");
+            snprintf(targetText, sizeof(targetText), "Single player targetting: %s", singlePlayerTargetting ? "enabled" : "disabled");
+            const char* victoriesLimits[] = {"none (unlimited)", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "15", "20", "30", "50", "100"};
+            snprintf(victoriesText, sizeof(victoriesText), "Victories limit: %s", victoriesLimits[victoriesLimitIndex]);
+            actions.push_back(crText);       // index 1
+            actions.push_back(continueText); // index 2
+            actions.push_back(targetText);   // index 3
+            actions.push_back(victoriesText);// index 4
 
-                // Victories limit text
-                const char* victoriesLimits[] = {"none (unlimited)", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "15", "20", "30", "50", "100"};
-                snprintf(victoriesText, sizeof(victoriesText), "Victories limit: %s", victoriesLimits[victoriesLimitIndex]);
+            // Per-player grid rows (indices 5-7) — label only; values rendered as grid cells below
+            actions.push_back("Colors:");    // index 5
+            actions.push_back("Rows:");      // index 6
+            actions.push_back("Aim:");       // index 7
 
-                actions.push_back(crText);
-                actions.push_back(continueText);
-                actions.push_back(targetText);
-                actions.push_back(victoriesText);
-
-                // Per-player color count entries (indices 5..5+N-1)
-                int numPlayers = (int)currentGame->players.size();
-                if (numPlayers < 1) numPlayers = 1;
-                if (numPlayers > 5) numPlayers = 5;
-                for (int pi = 0; pi < numPlayers; pi++) {
-                    char colorText[80];
-                    std::string pnick = (pi < (int)currentGame->players.size()) ? currentGame->players[pi].nick : std::to_string(pi + 1);
-                    snprintf(colorText, sizeof(colorText), "Colors %s: %d", pnick.c_str(), playerColorCounts[pi]);
-                    actions.push_back(colorText);
-                }
-                // Per-player compression toggle (indices 5+N..5+2N-1)
-                for (int pi = 0; pi < numPlayers; pi++) {
-                    char compText[80];
-                    std::string pnick = (pi < (int)currentGame->players.size()) ? currentGame->players[pi].nick : std::to_string(pi + 1);
-                    snprintf(compText, sizeof(compText), "Rows collapse %s: %s", pnick.c_str(), playerNoCompress[pi] ? "on" : "off");
-                    actions.push_back(compText);
-                }
-                // Per-player aim guide toggle (indices 5+2N..5+3N-1)
-                for (int pi = 0; pi < numPlayers; pi++) {
-                    char aimText[80];
-                    std::string pnick = (pi < (int)currentGame->players.size()) ? currentGame->players[pi].nick : std::to_string(pi + 1);
-                    snprintf(aimText, sizeof(aimText), "Aim guide %s: %s", pnick.c_str(), playerAimGuide[pi] ? "on" : "off");
-                    actions.push_back(aimText);
-                }
-
-                // Only show Start game if there are other players
-                if (currentGame->players.size() > 1) {
-                    actions.push_back("Start game!");
-                }
-            } else {
-                // Joiner - show game settings (read-only, like original)
-                char crText[64], continueText[64], targetText[64], victoriesText[64];
-                snprintf(crText, sizeof(crText), "Chain-reaction: %s", chainReactionEnabled ? "enabled" : "disabled");
-                snprintf(continueText, sizeof(continueText), "Continue when players leave: %s", continueWhenPlayersLeave ? "enabled" : "disabled");
-                snprintf(targetText, sizeof(targetText), "Single player targetting: %s", singlePlayerTargetting ? "enabled" : "disabled");
-
-                const char* victoriesLimits[] = {"none (unlimited)", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "15", "20", "30", "50", "100"};
-                snprintf(victoriesText, sizeof(victoriesText), "Victories limit: %s", victoriesLimits[victoriesLimitIndex]);
-
-                actions.push_back(crText);
-                actions.push_back(continueText);
-                actions.push_back(targetText);
-                actions.push_back(victoriesText);
-
-                // Per-player color count (read-only for joiners)
-                int numPlayers = (int)currentGame->players.size();
-                if (numPlayers < 1) numPlayers = 1;
-                if (numPlayers > 5) numPlayers = 5;
-                for (int pi = 0; pi < numPlayers; pi++) {
-                    char colorText[80];
-                    std::string pnick = (pi < (int)currentGame->players.size()) ? currentGame->players[pi].nick : std::to_string(pi + 1);
-                    snprintf(colorText, sizeof(colorText), "Colors %s: %d", pnick.c_str(), playerColorCounts[pi]);
-                    actions.push_back(colorText);
-                }
-                // Per-player compression and aim guide (read-only)
-                for (int pi = 0; pi < numPlayers; pi++) {
-                    char compText[80];
-                    std::string pnick = (pi < (int)currentGame->players.size()) ? currentGame->players[pi].nick : std::to_string(pi + 1);
-                    snprintf(compText, sizeof(compText), "Rows collapse %s: %s", pnick.c_str(), playerNoCompress[pi] ? "on" : "off");
-                    actions.push_back(compText);
-                }
-                for (int pi = 0; pi < numPlayers; pi++) {
-                    char aimText[80];
-                    std::string pnick = (pi < (int)currentGame->players.size()) ? currentGame->players[pi].nick : std::to_string(pi + 1);
-                    snprintf(aimText, sizeof(aimText), "Aim guide %s: %s", pnick.c_str(), playerAimGuide[pi] ? "on" : "off");
-                    actions.push_back(aimText);
-                }
+            // Start game (index 8) — host only when >1 player
+            if (currentGame->creator == netClient->GetPlayerNick() && currentGame->players.size() > 1) {
+                actions.push_back("Start game!"); // index 8
             }
             // No "Part game" menu item - use ESC key to leave like original
         } else {
@@ -1927,18 +1836,95 @@ void MainMenu::NetPanelRender() {
             }
         }
 
+        // Grid offset: player header + grid rows are shifted down one line to make room for nick header
+        const int gridStart = 5;       // First grid row index
+        const int gridYOffset = lineHeight; // Extra offset for nick header above grid
+
         // Render actions with highlight
         for (size_t i = 0; i < actions.size() && i < 15; i++) {
+            int renderY = actionStartY + (int)(i * lineHeight) + ((int)i >= gridStart ? gridYOffset : 0);
+
             if (i == (size_t)selectedActionIndex && highlightServer) {
-                SDL_Rect highlightRect = {actionStartX - 4, actionStartY + (int)(i * lineHeight) - 1, 200, lineHeight};
+                SDL_Rect highlightRect = {actionStartX - 4, renderY - 1, 200, lineHeight};
                 SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), highlightServer, nullptr, &highlightRect);
+            }
+
+            // For grid rows (5-7 in a game room), skip the label text here — rendered as table below
+            if (currentGame && (int)i >= gridStart && (int)i <= gridStart + 2) {
+                continue;
             }
 
             char actionText[128];
             snprintf(actionText, sizeof(actionText), "%s", actions[i].c_str());
             panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), actionText, 0);
-            panelText.UpdatePosition({actionStartX, actionStartY + (int)(i * lineHeight)});
+            panelText.UpdatePosition({actionStartX, renderY});
             SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+        }
+
+        // Render the per-player settings grid (only in a game room)
+        if (currentGame) {
+            int numPlayers = (int)currentGame->players.size();
+            if (numPlayers < 1) numPlayers = 1;
+            if (numPlayers > 5) numPlayers = 5;
+            bool isHost = currentGame->creator == netClient->GetPlayerNick();
+
+            // Column layout
+            const int labelW = 52;   // Width of row label ("Colors:", "Rows:", "Aim:")
+            const int colW   = 30;   // Width of each player column
+
+            // Player number header row (non-selectable) — rendered just above the Colors row
+            int headerY = actionStartY + gridStart * lineHeight; // y before gridYOffset
+            for (int pi = 0; pi < numPlayers; pi++) {
+                char pnum[4];
+                snprintf(pnum, sizeof(pnum), "P%d", pi + 1);
+                int cellX = actionStartX + labelW + pi * colW;
+                panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), pnum, 0);
+                panelText.UpdatePosition({cellX, headerY});
+                SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+            }
+
+            // Grid rows: Colors (5), Rows (6), Aim (7)
+            const char* rowLabels[] = {"Colors:", "Rows:", "Aim:"};
+            for (int row = 0; row < 3; row++) {
+                int rowIdx = gridStart + row;
+                int rowY   = actionStartY + rowIdx * lineHeight + gridYOffset;
+
+                // Highlight full row if selected
+                if (selectedActionIndex == rowIdx && highlightServer) {
+                    SDL_Rect hlRect = {actionStartX - 4, rowY - 1, 200, lineHeight};
+                    SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), highlightServer, nullptr, &hlRect);
+                }
+
+                // Row label
+                panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), rowLabels[row], 0);
+                panelText.UpdatePosition({actionStartX, rowY});
+                SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+
+                // Per-player cells
+                for (int pi = 0; pi < numPlayers; pi++) {
+                    int cellX = actionStartX + labelW + pi * colW;
+                    bool isFocusedCell = (selectedActionIndex == rowIdx && currentPlayerCol == pi);
+
+                    // Cell highlight for focused cell (host only)
+                    if (isFocusedCell && isHost && highlightServer) {
+                        SDL_Rect cellHl = {cellX - 2, rowY - 1, colW - 2, lineHeight};
+                        SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), highlightServer, nullptr, &cellHl);
+                    }
+
+                    // Cell value text
+                    char cellText[8];
+                    if (row == 0) {
+                        snprintf(cellText, sizeof(cellText), "%d", playerColorCounts[pi]);
+                    } else if (row == 1) {
+                        snprintf(cellText, sizeof(cellText), "%s", playerNoCompress[pi] ? "off" : "on");
+                    } else {
+                        snprintf(cellText, sizeof(cellText), "%s", playerAimGuide[pi] ? "on" : "off");
+                    }
+                    panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), cellText, 0);
+                    panelText.UpdatePosition({cellX, rowY});
+                    SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+                }
+            }
         }
 
         // If Chat is selected, show inline text input (like original at y=320)

@@ -169,6 +169,7 @@ private:
     int playerColorCounts[5] = {7, 7, 7, 7, 7};  // Per-player color count (5-8)
     bool playerNoCompress[5] = {false, false, false, false, false};  // Per-player: disable row compression
     bool playerAimGuide[5] = {false, false, false, false, false};  // Per-player: show aim guide
+    int currentPlayerCol = 0;  // Focused player column when navigating per-player grid settings
 
     // Geolocation state
     float myGeoLat = 0.0f, myGeoLon = 0.0f;

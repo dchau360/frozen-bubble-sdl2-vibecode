@@ -31,8 +31,10 @@ The host can configure the following settings in the game room — all joined pl
 | Single player targeting | All malus attacks target one player instead of spreading |
 | Victories limit | Number of round wins needed to win the match (or unlimited) |
 | Colors per player | Number of bubble colors per player's board (5–8, default 7). The optional 8th color is orange. |
-| Rows collapse per player | Disable rows dropping down for a specific player (rows never advance) |
+| Rows collapse per player | Whether rows drop down periodically for a specific player (on by default; set to off to disable) |
 | Aim guide per player | Show a trajectory preview for a specific player's shots |
+
+The last three settings are shown as a compact grid (P1–P5 columns) that the host navigates with arrow keys and Enter.
 
 ---
 
