@@ -165,8 +165,18 @@ Or right-click the app → **Open** → **Open** to bypass Gatekeeper once.
 - [ ] Implement single-player malus targeting to match original Perl behavior
 - [ ] Polish network lobby room/player list layout
 - [ ] WebAssembly: implement public server fetch via `emscripten_fetch`
+- [ ] Finish local multiplayer (controller support, 2–5 players)
 - [ ] Sign macOS `.app` bundle for Gatekeeper compatibility
 - [ ] Sign Windows installer for SmartScreen compatibility
+
+---
+
+## New in v2.3.0
+
+- **Per-player lobby settings grid** — Colors, Rows collapse, and Aim guide shown as a P1–P5 column grid; host navigates with arrow keys and Enter
+- **Aim guide** — trajectory preview toggle per player
+- **Row compression toggle** per player — disable rows collapsing for specific players
+- **Local multiplayer** — 2–5 players on controllers *(work in progress)*
 
 ---
 
@@ -182,7 +192,7 @@ Features ported from the original Frozen Bubble 2 Perl source:
 | 2–5 player network multiplayer layouts | ✅ |
 | Network protocol (fb-server + client messages) | ✅ |
 | LAN auto-discovery (UDP broadcast) | ✅ |
-| Public server list | ✅ |
+| Public server list (desktop; WebAssembly pending) | ✅ |
 | In-game chat | ✅ |
 | Victories limit | ✅ |
 | Per-player color count (5–8 colors) | ✅ |
@@ -192,9 +202,8 @@ Features ported from the original Frozen Bubble 2 Perl source:
 | Multiplayer training mode | ✅ |
 | Geolocation dots on world map lobby | ✅ |
 | Aim guide (trajectory preview) | ✅ (added beyond original) |
-| Local multiplayer (2–5 players, controllers) | ✅ (added beyond original) |
+| Local multiplayer (2–5 players, controllers) | ⏳ WIP |
 | Single-player malus targeting logic | ⏳ (placeholder) |
-| WebAssembly public server fetch | ⏳ |
 
 ---
 
