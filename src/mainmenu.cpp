@@ -1908,12 +1908,12 @@ void MainMenu::NetPanelRender() {
             bool isHost = currentGame->creator == netClient->GetPlayerNick();
 
             // Column layout
-            const int labelW = 90;   // Width of row label ("Colors:", "Row collapse:", "Aim guide:")
-            const int colW   = 30;   // Width of each player column
+            const int labelW = 110;  // Width of row label ("Colors:", "Row collapse:", "Aim guide:")
+            const int colW   = 36;   // Width of each player column
 
-            // Player number header row (non-selectable) — rendered just above the Colors row
-            // col 0 = ALL, col 1..N = P1..PN
-            int headerY = actionStartY + gridStart * lineHeight; // y before gridYOffset
+            // Header row sits exactly one lineHeight above the first data row
+            int firstDataRowY = actionStartY + gridStart * lineHeight + gridYOffset;
+            int headerY = firstDataRowY - lineHeight;
 
             // Draw grid lines
             {
@@ -1924,15 +1924,17 @@ void MainMenu::NetPanelRender() {
                 int gridLeft  = actionStartX - 2;
                 int gridRight = actionStartX + labelW + totalCols * colW;
                 int gridTop   = headerY - 1;
-                int gridBot   = headerY + 4 * lineHeight; // header + 3 data rows
+                int gridBot   = firstDataRowY + 3 * lineHeight; // 3 data rows
 
                 // Outer border
                 SDL_Rect border = {gridLeft, gridTop, gridRight - gridLeft, gridBot - gridTop};
                 SDL_RenderDrawRect(rend, &border);
 
-                // Horizontal lines: after header, after Colors, after Rows
-                for (int r = 1; r <= 3; r++) {
-                    int y = headerY + r * lineHeight;
+                // Horizontal line after header row
+                SDL_RenderDrawLine(rend, gridLeft, firstDataRowY - 1, gridRight, firstDataRowY - 1);
+                // Horizontal lines between data rows (after Colors, after Row collapse)
+                for (int r = 1; r <= 2; r++) {
+                    int y = firstDataRowY + r * lineHeight;
                     SDL_RenderDrawLine(rend, gridLeft, y, gridRight, y);
                 }
 
@@ -1946,20 +1948,24 @@ void MainMenu::NetPanelRender() {
                     SDL_RenderDrawLine(rend, x, gridTop, x, gridBot);
                 }
             }
-            {
-                // ALL header
-                int allX = actionStartX + labelW;
-                panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), "ALL", 0);
-                panelText.UpdatePosition({allX, headerY});
-                SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
-            }
+            // Helper: render text centered within a column cell
+            auto renderCentered = [&](const char* txt, int colLeft, int y) {
+                SDL_Renderer* rend2 = const_cast<SDL_Renderer*>(renderer);
+                panelText.UpdateText(rend2, txt, 0);
+                int tw = 0;
+                if (panelText.Texture()) SDL_QueryTexture(panelText.Texture(), nullptr, nullptr, &tw, nullptr);
+                int cx = colLeft + colW / 2 - tw / 2;
+                panelText.UpdatePosition({cx, y});
+                SDL_RenderCopy(rend2, panelText.Texture(), nullptr, panelText.Coords());
+            };
+
+            // ALL header
+            renderCentered("ALL", actionStartX + labelW, headerY);
+            // P1..PN headers
             for (int pi = 0; pi < numPlayers; pi++) {
                 char pnum[4];
                 snprintf(pnum, sizeof(pnum), "P%d", pi + 1);
-                int cellX = actionStartX + labelW + (pi + 1) * colW; // +1 to skip ALL column
-                panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), pnum, 0);
-                panelText.UpdatePosition({cellX, headerY});
-                SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+                renderCentered(pnum, actionStartX + labelW + (pi + 1) * colW, headerY);
             }
 
             // Grid rows: Colors (5), Rows (6), Aim (7)
@@ -2004,9 +2010,7 @@ void MainMenu::NetPanelRender() {
                         if (same) snprintf(cellText, sizeof(cellText), "%s", playerAimGuide[0] ? "on" : "off");
                         else snprintf(cellText, sizeof(cellText), "-");
                     }
-                    panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), cellText, 0);
-                    panelText.UpdatePosition({cellX, rowY});
-                    SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+                    renderCentered(cellText, actionStartX + labelW, rowY);
                 }
 
                 // Per-player cells (P1..PN at col 1..N)
@@ -2029,9 +2033,7 @@ void MainMenu::NetPanelRender() {
                     } else {
                         snprintf(cellText, sizeof(cellText), "%s", playerAimGuide[pi] ? "on" : "off");
                     }
-                    panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), cellText, 0);
-                    panelText.UpdatePosition({cellX, rowY});
-                    SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+                    renderCentered(cellText, cellX, rowY);
                 }
             }
         }
