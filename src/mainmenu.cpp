@@ -2584,6 +2584,8 @@ void MainMenu::SetupNewGame(int mode) {
                 ns.networkGame = true;
                 ns.randomLevels = true;
                 ns.singlePlayerTargetting = singlePlayerTargetting;
+                static const int vLimits[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,15,20,30,50,100};
+                ns.victoriesLimit = vLimits[victoriesLimitIndex];
                 for (int i = 0; i < 5; i++) {
                     ns.playerColors[i] = playerColorCounts[i];
                     ns.disableCompression[i] = playerNoCompress[i];

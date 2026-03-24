@@ -243,6 +243,7 @@ struct SetupSettings {
     int playerColors[5] = {7, 7, 7, 7, 7};  // Per-player color count (5-8)
     bool disableCompression[5] = {false, false, false, false, false};  // Per-player: skip row compression
     bool aimGuide[5] = {false, false, false, false, false};  // Per-player: show aim trajectory guide
+    int victoriesLimit = 0;  // 0 = unlimited; >0 = first to reach this wins the match
 };
 
 struct BubbleArray {
@@ -400,6 +401,7 @@ private:
     SDL_Rect panelRct;
 
     bool lowGfx = false, gameWon = false, gameLost = false, gameFinish = false, firstRenderDone = false, gameMpDone = false;
+    bool gameMatchOver = false; // Victories limit reached - match is over, return to lobby
     bool waitingForOpponentNewGame = false; // Waiting for opponents to press key for new game
     bool opponentReadyForNewGame = false; // Opponent sent 'n' ready signal
     int opponentsReadyCount = 0; // Number of opponents who sent 'n' (for 3+ player)

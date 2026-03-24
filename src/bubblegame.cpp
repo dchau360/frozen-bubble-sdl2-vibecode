@@ -719,7 +719,7 @@ void BubbleGame::NewGame(SetupSettings setup) {
     if (background != nullptr) SDL_DestroyTexture(background);
 
     // Reset game state flags
-    gameFinish = gameWon = gameLost = false;
+    gameFinish = gameWon = gameLost = gameMatchOver = false;
     gameMpDone = false;
     sendMalusToOne = -1;
     attackingMe.clear();
@@ -1172,6 +1172,32 @@ void BubbleGame::NewGame(SetupSettings setup) {
                 bubbleArrays[i].lobbyPlayerId = -1;
                 bubbleArrays[i].playerNickname = "";
             }
+
+            // Remap per-player settings (aimGuide, compression, colors) from lobby slot order
+            // to bubbleArray order. setup.aimGuide[i] is indexed by the game room's player list
+            // (host=0, first joiner=1, ...), but bubbleArrays[0] is always the local player.
+            // Match by nick to apply the right setting to each array.
+            const GameRoom* room = netClient->GetCurrentGame();
+            if (room) {
+                const auto& roomPlayers = room->players;
+                for (int arr = 0; arr < currentSettings.playerCount; arr++) {
+                    const std::string& nick = bubbleArrays[arr].playerNickname;
+                    for (int slot = 0; slot < (int)roomPlayers.size() && slot < 5; slot++) {
+                        if (roomPlayers[slot].nick == nick) {
+                            int nc = currentSettings.playerColors[slot];
+                            nc = (nc < 5) ? 5 : (nc > 8) ? 8 : nc;
+                            bubbleArrays[arr].numColors = nc;
+                            bubbleArrays[arr].compressionDisabled = currentSettings.disableCompression[slot];
+                            bubbleArrays[arr].aimGuideEnabled = currentSettings.aimGuide[slot];
+                            SDL_Log("Remapped slot %d ('%s') -> array %d: colors=%d compress=%d aim=%d",
+                                    slot, nick.c_str(), arr, nc,
+                                    currentSettings.disableCompression[slot],
+                                    currentSettings.aimGuide[slot]);
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1273,7 +1299,7 @@ void BubbleGame::ReloadGame(int level) {
     TransitionManager::Instance()->DoSnipIn(rend);
     firstRenderDone = false;
 
-    gameFinish = gameWon = gameLost = false;
+    gameFinish = gameWon = gameLost = gameMatchOver = false;
     gameMpDone = false;
     sendMalusToOne = -1;
     attackingMe.clear();
@@ -2859,17 +2885,25 @@ void BubbleGame::ProcessMalusQueue(BubbleArray &bArray, int currentFrame) {
         // Generate random bubble color (original: int(rand(@bubbles_images)) = 0..7)
         int bubbleId = ranrange(0, bArray.numColors - 1);
 
-        // Choose column (original line 2231-2240)
-        int cx = ranrange(0, 7);  // Simplified - original has noinstantdeath logic
+        // Choose column (original line 2231-2240): int(rand(7)) = 0..6
+        int cx = ranrange(0, 6);
+
+        // If column is full (stickY would exceed row 12), try adjacent columns
+        // (original's noinstantdeath logic avoids placing on full columns)
+        int attempts = 0;
+        while (top_of_cx[cx] >= 12 && attempts < 7) {
+            cx = (cx + 1) % 7;
+            attempts++;
+        }
+        if (top_of_cx[cx] >= 12) {
+            // All columns full - skip this malus
+            fallingMalusCount--;
+            continue;
+        }
 
         // Calculate where bubble will stick (original line 2241-2243)
         int cy = 12;  // Always starts at row 12
         int stickY = top_of_cx[cx] + 1;  // Stick one row below highest in column
-
-        // Clamp to valid grid range (0-12)
-        if (stickY > 12) {
-            stickY = 12;
-        }
 
         // Update top_of_cx for next bubble in this column
         top_of_cx[cx] = stickY;
@@ -3144,33 +3178,44 @@ void BubbleGame::HandlePlayerLoss(BubbleArray &bArray) {
             if (winnerIdx >= 0) {
                 // We have a winner! Game ends immediately (original lines 1933-1944)
                 SDL_Log("Winner found: player %d", winnerIdx);
-                gameFinish = true;
                 bubbleArrays[winnerIdx].mpWinner = true;
                 bubbleArrays[winnerIdx].penguinSprite.PlayAnimation(10);
 
-                // Send F message to notify other clients (original line 1943)
-                // Format: F{winnerNick}
-                NetworkClient* netClient = NetworkClient::Instance();
-                if (netClient && netClient->IsConnected() && netClient->GetState() == IN_GAME && bubbleArrays[winnerIdx].playerState != BubbleArray::PlayerState::LEFT) {
-                    char msg[128];
-                    snprintf(msg, sizeof(msg), "F%s", bubbleArrays[winnerIdx].playerNickname.c_str());
-                    netClient->SendGameData(msg);
-                    SDL_Log("Sent win notification: %s", bubbleArrays[winnerIdx].playerNickname.c_str());
-                } else {
-                    SDL_Log("Did NOT send win notification - netClient=%p, connected=%d, state=%d, winnerState=%d",
-                            (void*)netClient, netClient ? netClient->IsConnected() : 0,
-                            netClient ? (int)netClient->GetState() : -1,
-                            (int)bubbleArrays[winnerIdx].playerState);
-                }
+                // Guard: only process once per round.
+                // Multiple clients independently detect the same winner and each send 'F'.
+                // The server relays each 'F' to the *other* players (not back to sender).
+                // So if we get here first (before receiving any 'F'), we count locally and
+                // the incoming 'F' from the other client is blocked by the !gameFinish guard
+                // in the 'F' handler. If 'F' somehow arrived first, gameFinish is already
+                // set and we skip the increment here.
+                if (!gameFinish) {
+                    gameFinish = true;
 
-                // Update win counters
-                if (winnerIdx == 0) {
-                    winsP1++;
-                } else {
-                    winsP2++;
+                    if (winnerIdx == 0) {
+                        winsP1++;
+                    } else {
+                        winsP2++;
+                    }
+                    bubbleArrays[winnerIdx].winCount++;
+                    Update2PText();
+
+                    // Check victories limit
+                    if (currentSettings.victoriesLimit > 0 &&
+                        bubbleArrays[winnerIdx].winCount >= currentSettings.victoriesLimit) {
+                        gameMatchOver = true;
+                        SDL_Log("Match over! Player %d reached %d victories",
+                                winnerIdx, currentSettings.victoriesLimit);
+                    }
+
+                    // Send 'F' to notify other clients (original line 1943)
+                    NetworkClient* netClient = NetworkClient::Instance();
+                    if (netClient && netClient->IsConnected() && netClient->GetState() == IN_GAME && bubbleArrays[winnerIdx].playerState != BubbleArray::PlayerState::LEFT) {
+                        char msg[128];
+                        snprintf(msg, sizeof(msg), "F%s", bubbleArrays[winnerIdx].playerNickname.c_str());
+                        netClient->SendGameData(msg);
+                        SDL_Log("Sent win notification: %s", bubbleArrays[winnerIdx].playerNickname.c_str());
+                    }
                 }
-                bubbleArrays[winnerIdx].winCount++;
-                Update2PText();
             }
         } else if (livingCount == 0) {
             // All players dead - draw game (no winner)
@@ -3238,12 +3283,19 @@ void BubbleGame::CheckGameState(BubbleArray &bArray) {
             // In network games, only local player (array 0) processes wins
             if (currentSettings.networkGame && bArray.playerAssigned == 0) {
                 // Local player cleared all bubbles - we won!
+                // Count locally: server does NOT relay our own 'F' back to us.
                 winsP1++;
                 bArray.winCount++;
                 Update2PText();
 
-                // Send 'F' message to inform opponent (original line 1943)
-                // Perl format: "F{winnerNick}" (no separator) - original: gsend("F$nick")
+                if (currentSettings.victoriesLimit > 0 &&
+                    bArray.winCount >= currentSettings.victoriesLimit) {
+                    gameMatchOver = true;
+                    SDL_Log("Match over! Local player reached %d victories",
+                            currentSettings.victoriesLimit);
+                }
+
+                // Send 'F' to inform opponents (original line 1943)
                 NetworkClient* netClient = NetworkClient::Instance();
                 if (netClient && netClient->IsConnected() && netClient->GetState() == IN_GAME) {
                     std::string fMsg = "F" + netClient->GetPlayerNick();
@@ -3788,12 +3840,6 @@ void BubbleGame::Render() {
 
     // In-game chat overlay (network games only)
     if (currentSettings.networkGame) {
-        // Tick down message timers; remove expired
-        for (auto it = inGameChatMessages.begin(); it != inGameChatMessages.end(); ) {
-            if (--(it->framesLeft) <= 0) it = inGameChatMessages.erase(it);
-            else ++it;
-        }
-
         if (!inGameChatMessages.empty() || chattingMode) {
             const int lineH   = 18;
             const int maxShow = 3;
@@ -4012,6 +4058,12 @@ void BubbleGame::HandleInput(SDL_Event *e) {
 
                     // In network game, synchronize new game with opponent
                     if (currentSettings.networkGame) {
+                        // If match is over (victories limit reached), return to lobby
+                        if (gameMatchOver) {
+                            SDL_Log("Match over - victories limit reached, returning to lobby");
+                            QuitToTitle();
+                            break;
+                        }
                         // If all opponents have disconnected, no one to play with - return to lobby
                         if (connectedPlayerCount <= 1) {
                             SDL_Log("No connected opponents remain - returning to lobby");
@@ -4216,7 +4268,7 @@ void BubbleGame::ProcessNetworkMessages() {
                         // Auto-respond for ALL player counts (original: receiving 'n' triggers mp_newgame->()
                         // which immediately sends our own 'n' without requiring local keypress).
                         // This means only ONE player needs to press a key; everyone else auto-responds.
-                        if (!waitingForOpponentNewGame && gameFinish) {
+                        if (!waitingForOpponentNewGame && gameFinish && !gameMatchOver) {
                             SDL_Log("Opponent pressed key first - auto-sending 'n' (%dP game)", currentSettings.playerCount);
                             NetworkClient* netClient = NetworkClient::Instance();
                             if (netClient->IsConnected() && netClient->GetState() == IN_GAME) {
@@ -4459,20 +4511,31 @@ void BubbleGame::ProcessNetworkMessages() {
                         }
 
                         if (winnerPlayer >= 0 && winnerPlayer < currentSettings.playerCount) {
-                            gameFinish = true;
-                            bubbleArrays[winnerPlayer].mpWinner = true;
-                            bubbleArrays[winnerPlayer].penguinSprite.PlayAnimation(10);
+                            // Guard: only process the first 'F' per round (multiple clients may send it)
+                            if (!gameFinish) {
+                                gameFinish = true;
+                                bubbleArrays[winnerPlayer].mpWinner = true;
+                                bubbleArrays[winnerPlayer].penguinSprite.PlayAnimation(10);
 
-                            if (winnerPlayer == 0) {
-                                winsP1++;
-                                SDL_Log("Win counter updated: We won! winsP1=%d", winsP1);
-                            } else {
-                                winsP2++;
-                                SDL_Log("Win counter updated: Opponent won! winsP2=%d", winsP2);
+                                if (winnerPlayer == 0) {
+                                    winsP1++;
+                                    SDL_Log("Win counter updated: We won! winsP1=%d", winsP1);
+                                } else {
+                                    winsP2++;
+                                    SDL_Log("Win counter updated: Opponent won! winsP2=%d", winsP2);
+                                }
+                                bubbleArrays[winnerPlayer].winCount++;
+                                Update2PText();
+                                panelRct = {SCREEN_CENTER_X - 173, 480 - 289, 329, 159};
+
+                                // Check victories limit
+                                if (currentSettings.victoriesLimit > 0 &&
+                                    bubbleArrays[winnerPlayer].winCount >= currentSettings.victoriesLimit) {
+                                    gameMatchOver = true;
+                                    SDL_Log("Match over! Player %d reached %d victories",
+                                            winnerPlayer, currentSettings.victoriesLimit);
+                                }
                             }
-                            bubbleArrays[winnerPlayer].winCount++;
-                            Update2PText();
-                            panelRct = {SCREEN_CENTER_X - 173, 480 - 289, 329, 159};
                         } else {
                             SDL_Log("ERROR: Could not identify winner from F message: '%s'", winnerNick.c_str());
                         }
