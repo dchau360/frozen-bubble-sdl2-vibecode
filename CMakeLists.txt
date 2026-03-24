@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 
-project(frozen-bubble-sdl2 CXX)
+project(frozen-bubble-sdl2 CXX C)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
