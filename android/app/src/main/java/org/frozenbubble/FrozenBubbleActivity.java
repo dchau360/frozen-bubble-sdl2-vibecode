@@ -35,6 +35,12 @@ public class FrozenBubbleActivity extends SDLActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Extract APK assets to writable internal storage BEFORE SDL starts.
+        // C++ code uses fopen() which cannot read APK assets directly — they
+        // must be copied to the filesystem first. This is fast on subsequent
+        // launches (version marker detected, extraction skipped).
+        AssetExtractor.extractAll(this);
+
         super.onCreate(savedInstanceState);
 
         // NOTE: AdMob init is intentionally deferred — calling MobileAds.initialize()

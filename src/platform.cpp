@@ -45,11 +45,19 @@ static void extractAssets(const std::string& destDir) {
 }
 
 void InitDataDir() {
-    // On Android, SDL_RWFromFile("gfx/foo.png", "rb") automatically
-    // uses the Android Asset Manager for relative paths.
-    // Set g_dataDir to empty so ASSET("/gfx/foo.png") becomes "/gfx/foo.png"
-    // but we strip the leading slash for Android asset paths.
-    g_dataDir = "";
+    // Assets are extracted from the APK to internal storage by AssetExtractor.java
+    // (called in FrozenBubbleActivity.onCreate before SDL starts).
+    // SDL_AndroidGetInternalStoragePath() returns the same path as context.getFilesDir(),
+    // e.g. /data/user/0/org.frozenbubble/files — we append /share to match extraction dest.
+    const char* internalPath = SDL_AndroidGetInternalStoragePath();
+    if (internalPath) {
+        g_dataDir = std::string(internalPath) + "/share";
+    } else {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                     "SDL_AndroidGetInternalStoragePath() returned null — using hardcoded fallback");
+        g_dataDir = "/data/data/org.frozenbubble/files/share";
+    }
+    SDL_Log("Android data dir: %s", g_dataDir.c_str());
 }
 
 #elif defined(__WASM_PORT__)
