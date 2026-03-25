@@ -746,8 +746,12 @@ void BubbleGame::NewGame(SetupSettings setup) {
     }
 
     // Initialize controllers for local multiplayer
+    // On Android, opening a TV remote as SDL_GameController captures its d-pad events,
+    // causing SDL_GetKeyboardState to stop seeing them. Use keyboard-only on Android.
     if (currentSettings.localMultiplayer) {
+#ifndef __ANDROID__
         InitControllers();
+#endif
         int connected = SDL_NumJoysticks();
         SDL_Log("Local multiplayer: %d controllers connected, need %d",
                 connected, currentSettings.playerCount);

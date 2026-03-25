@@ -288,6 +288,20 @@ void MainMenu::HandleInput(SDL_Event *e){
             }
             break;
         case SDL_KEYDOWN:
+            // Handle backspace/delete in text fields before the repeat filter,
+            // because Android's IME may send backspace with repeat=1 on a single press.
+            if (e->key.keysym.sym == SDLK_BACKSPACE || e->key.keysym.sym == SDLK_DELETE) {
+                if (showingNetPanel && !networkInLobby && networkInputMode == 8) {
+                    size_t len = strlen(networkHost);
+                    if (len > 0) networkHost[len - 1] = '\0';
+                    break;
+                }
+                if (showingNetPanel && !networkInLobby && networkInputMode == 11) {
+                    size_t len = strlen(networkPreNick);
+                    if (len > 0) networkPreNick[len - 1] = '\0';
+                    break;
+                }
+            }
             if(e->key.repeat) break;
 
             // Handle network panel text input
