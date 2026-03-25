@@ -529,8 +529,8 @@ void MainMenu::HandleInput(SDL_Event *e){
 
             // Handle local multiplayer setup panel navigation
             if (showingLocalMPPanel && !runDelay) {
-                // 0=Players, 1=CR, 2..2+N-1=Colors per player, 2+N=Start
-                int localMaxIdx = 2 + localMPPlayerCount;
+                // 0=Players, 1=CR, 2=Row collapse, 3=Aim guide, 4..4+N-1=Colors per player, 4+N=Start
+                int localMaxIdx = 4 + localMPPlayerCount;
                 if (e->key.keysym.sym == SDLK_UP) {
                     localMPMenuIndex--;
                     if (localMPMenuIndex < 0) localMPMenuIndex = localMaxIdx;
@@ -554,8 +554,14 @@ void MainMenu::HandleInput(SDL_Event *e){
                     } else if (localMPMenuIndex == 1) {
                         localMPCR = !localMPCR;
                         AudioMixer::Instance()->PlaySFX("menu_change");
-                    } else if (localMPMenuIndex >= 2 && localMPMenuIndex < 2 + localMPPlayerCount) {
-                        int pi = localMPMenuIndex - 2;
+                    } else if (localMPMenuIndex == 2) {
+                        localMPNoCompress = !localMPNoCompress;
+                        AudioMixer::Instance()->PlaySFX("menu_change");
+                    } else if (localMPMenuIndex == 3) {
+                        localMPAimGuide = !localMPAimGuide;
+                        AudioMixer::Instance()->PlaySFX("menu_change");
+                    } else if (localMPMenuIndex >= 4 && localMPMenuIndex < 4 + localMPPlayerCount) {
+                        int pi = localMPMenuIndex - 4;
                         if (e->key.keysym.sym == SDLK_LEFT) {
                             playerColorCounts[pi]--;
                             if (playerColorCounts[pi] < 5) playerColorCounts[pi] = 8;
@@ -574,8 +580,14 @@ void MainMenu::HandleInput(SDL_Event *e){
                     } else if (localMPMenuIndex == 1) {
                         localMPCR = !localMPCR;
                         AudioMixer::Instance()->PlaySFX("menu_change");
-                    } else if (localMPMenuIndex >= 2 && localMPMenuIndex < 2 + localMPPlayerCount) {
-                        int pi = localMPMenuIndex - 2;
+                    } else if (localMPMenuIndex == 2) {
+                        localMPNoCompress = !localMPNoCompress;
+                        AudioMixer::Instance()->PlaySFX("menu_change");
+                    } else if (localMPMenuIndex == 3) {
+                        localMPAimGuide = !localMPAimGuide;
+                        AudioMixer::Instance()->PlaySFX("menu_change");
+                    } else if (localMPMenuIndex >= 4 && localMPMenuIndex < 4 + localMPPlayerCount) {
+                        int pi = localMPMenuIndex - 4;
                         playerColorCounts[pi]++;
                         if (playerColorCounts[pi] > 8) playerColorCounts[pi] = 5;
                         AudioMixer::Instance()->PlaySFX("menu_change");
@@ -1570,16 +1582,22 @@ void MainMenu::LocalMPPanelRender() {
         "Local multiplayer\n\n"
         "%s"
         "%s Players: %d\n"
-        "%s Chain-reaction: %s\n",
+        "%s Chain-reaction: %s\n"
+        "%s Row collapse: %s\n"
+        "%s Aim guide: %s\n",
         warningText,
         localMPMenuIndex == 0 ? ">" : " ",
         localMPPlayerCount,
         localMPMenuIndex == 1 ? ">" : " ",
-        localMPCR ? "enabled" : "disabled");
+        localMPCR ? "enabled" : "disabled",
+        localMPMenuIndex == 2 ? ">" : " ",
+        localMPNoCompress ? "disabled" : "enabled",
+        localMPMenuIndex == 3 ? ">" : " ",
+        localMPAimGuide ? "enabled" : "disabled");
     for (int pi = 0; pi < localMPPlayerCount && pi < 5; pi++) {
         pos += snprintf(pnltxt + pos, sizeof(pnltxt) - pos,
             "%s Colors P%d: %d\n",
-            localMPMenuIndex == 2 + pi ? ">" : " ",
+            localMPMenuIndex == 4 + pi ? ">" : " ",
             pi + 1,
             playerColorCounts[pi]);
     }
@@ -1589,7 +1607,7 @@ void MainMenu::LocalMPPanelRender() {
         "Use UP/DOWN to select\n"
         "LEFT/RIGHT or ENTER to change\n"
         "Press ESC to cancel",
-        localMPMenuIndex == 2 + localMPPlayerCount ? ">" : " ");
+        localMPMenuIndex == 4 + localMPPlayerCount ? ">" : " ");
 
     panelText.UpdateText(const_cast<SDL_Renderer *>(renderer), pnltxt, 0);
     panelText.UpdatePosition({(640/2) - (panelText.Coords()->w / 2), (480/2) - 130});
@@ -2747,7 +2765,11 @@ void MainMenu::SetupNewGame(int mode) {
             ns7.playerCount = localMPPlayerCount;
             ns7.randomLevels = true;
             ns7.localMultiplayer = true;
-            for (int i = 0; i < 5; i++) ns7.playerColors[i] = playerColorCounts[i];
+            for (int i = 0; i < 5; i++) {
+                ns7.playerColors[i] = playerColorCounts[i];
+                ns7.disableCompression[i] = localMPNoCompress;
+                ns7.aimGuide[i] = localMPAimGuide;
+            }
             FrozenBubble::Instance()->bubbleGame()->NewGame(ns7);
             break;
         }

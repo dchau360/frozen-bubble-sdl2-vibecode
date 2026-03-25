@@ -200,9 +200,11 @@ private:
 
     // Local multiplayer setup panel
     bool showingLocalMPPanel = false;
-    int localMPMenuIndex = 0;   // 0=player count, 1=chain reaction, 2=start
-    int localMPPlayerCount = 2; // 2-5 players
-    bool localMPCR = true;      // Chain reaction enabled
+    int localMPMenuIndex = 0;       // 0=players, 1=CR, 2=row collapse, 3=aim guide, 4..4+N-1=colors, 4+N=start
+    int localMPPlayerCount = 2;     // 2-5 players
+    bool localMPCR = true;          // Chain reaction enabled
+    bool localMPNoCompress = false;  // Disable row compression for all players
+    bool localMPAimGuide = false;    // Show aim guide for all players
     void LocalMPPanelRender();
 };
 
