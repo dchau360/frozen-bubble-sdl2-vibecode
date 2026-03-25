@@ -241,12 +241,6 @@ void FrozenBubble::HandleInput(SDL_Event *e) {
                 }
             }
             break;
-        case SDL_APP_WILLENTERBACKGROUND:
-            IsGamePause = true;
-            break;
-        case SDL_APP_DIDENTERFOREGROUND:
-            IsGamePause = false;
-            break;
         case SDL_QUIT:
             IsGameQuit = true;
             break;

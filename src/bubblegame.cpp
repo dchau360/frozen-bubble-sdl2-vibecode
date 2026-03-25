@@ -247,6 +247,7 @@ BubbleGame::BubbleGame(const SDL_Renderer *renderer)
     {
         snprintf(rel, sizeof(rel), "/gfx/balls/bubble-%d.gif", i);
         imgBubbles[i - 1] = IMG_LoadTexture(rend, ASSET(rel).c_str());
+        if (!imgBubbles[i - 1]) SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Failed to load bubble %d: %s (path: %s)", i, SDL_GetError(), ASSET(rel).c_str());
         snprintf(rel, sizeof(rel), "/gfx/balls/bubble-colourblind-%d.gif", i);
         imgColorblindBubbles[i - 1] = IMG_LoadTexture(rend, ASSET(rel).c_str());
         snprintf(rel, sizeof(rel), "/gfx/balls/bubble-%d-mini.png", i);
