@@ -1295,7 +1295,11 @@ void MainMenu::HandleInput(SDL_Event *e){
                         awaitKp = false;
                         break;
                     }
+#ifdef __ANDROID__
+                    SDL_MinimizeWindow(SDL_GetWindowFromID(1)); // go to home on Android
+#else
                     FrozenBubble::Instance()->CallGameQuit();
+#endif
                     break;
                 case SDLK_F11: // mute / unpause audio
                     if(AudioMixer::Instance()->IsHalted() == true) {
