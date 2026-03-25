@@ -2392,7 +2392,7 @@ void BubbleGame::CheckPossibleDestroy(BubbleArray &bArray){
                         comboText.UpdatePosition({SCREEN_CENTER_X - (comboText.Coords()->w / 2), 200});
                     }
 
-                    totalDestroyed += groupedCount + 1;  // Add to malus count (total including activator)
+                    totalDestroyed += groupedCount;  // Excludes activator, matching original @will_destroy
 
                     for (Bubble *bubble : bubbleCount) {
                         float startX = (float)bubble->pos.x;
@@ -2414,18 +2414,23 @@ void BubbleGame::CheckPossibleDestroy(BubbleArray &bArray){
         }
     }
 
-    int fallingCount = CheckAirBubbles(bArray);
+    // Original Perl: air bubble check and malus only run inside the match block (else of @will_destroy <= 1).
+    // If no match occurred (totalDestroyed == 0), skip both — mirroring the original behavior.
+    int fallingCount = 0;
+    if (totalDestroyed > 0) {
+        fallingCount = CheckAirBubbles(bArray);
 
-    // Assign chain reaction targets to newly falling bubbles (original line 814-865)
-    // This happens ONCE per stick event, not every frame
-    // In network games, only run chain reactions for the LOCAL player (array 0).
-    // Remote players handle chain reactions on their own clients; running AssignChainReactions
-    // on mini-player arrays (1+) would use wrong 32px column spacing for the 16px mini grid,
-    // corrupting the singleBubbles list and potentially interfering with local chain reactions.
-    bool shouldRunChainReactions = currentSettings.chainReaction && fallingCount > 0 &&
-        (!currentSettings.networkGame || bArray.playerAssigned == 0);
-    if (shouldRunChainReactions) {
-        AssignChainReactions(bArray);
+        // Assign chain reaction targets to newly falling bubbles (original line 814-865)
+        // This happens ONCE per stick event, not every frame
+        // In network games, only run chain reactions for the LOCAL player (array 0).
+        // Remote players handle chain reactions on their own clients; running AssignChainReactions
+        // on mini-player arrays (1+) would use wrong 32px column spacing for the 16px mini grid,
+        // corrupting the singleBubbles list and potentially interfering with local chain reactions.
+        bool shouldRunChainReactions = currentSettings.chainReaction && fallingCount > 0 &&
+            (!currentSettings.networkGame || bArray.playerAssigned == 0);
+        if (shouldRunChainReactions) {
+            AssignChainReactions(bArray);
+        }
     }
 
     // Calculate malus: destroyed + falling - 2 (original formula at line 958)
