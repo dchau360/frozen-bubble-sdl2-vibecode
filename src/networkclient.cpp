@@ -433,6 +433,7 @@ bool NetworkClient::SendOptions(bool chainReaction, bool continueWhenLeave, bool
     return SendCommand(cmd);
 }
 
+#ifndef __WASM_PORT__
 bool NetworkClient::SendGameData(const char* data) {
     // Game messages use binary protocol: {myid byte}{data}\n
     // NOT the FB/1.2 prefix format!
@@ -484,6 +485,7 @@ bool NetworkClient::SendGameData(const char* data) {
     }
     return true;
 }
+#endif // __WASM_PORT__ (SendGameData)
 
 bool NetworkClient::RequestList() {
     return SendCommand("LIST");
@@ -1016,6 +1018,7 @@ void NetworkClient::HandlePushMessage(const std::string& pushMsg) {
         // Original Perl: leader must poll LEADER_CHECK_GAME_START until all others send OK_GAME_START,
         // then leader sends OK_GAME_START last. Non-leaders just send OK_GAME_START immediately.
         // This ensures all players are in prio mode before the leader starts sending sync messages.
+#ifndef __WASM_PORT__
         if (IsLeader()) {
             SDL_Log("Leader: polling LEADER_CHECK_GAME_START until all joiners are ready...");
             int attempts = 0;
@@ -1048,6 +1051,7 @@ void NetworkClient::HandlePushMessage(const std::string& pushMsg) {
                 attempts++;
             }
         }
+#endif // __WASM_PORT__ (LEADER_CHECK_GAME_START TCP poll)
 
         SDL_Log("Sending OK_GAME_START acknowledgement (state is still %d)...", state);
         bool sent = SendCommand("OK_GAME_START");

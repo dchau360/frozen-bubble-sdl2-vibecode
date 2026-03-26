@@ -210,6 +210,13 @@ void NetworkClient::Update() {
     // Nothing to do: message delivery is callback-driven in WASM.
 }
 
+bool NetworkClient::SendGameData(const char* data) {
+    // In WASM the binary {id_byte}{data}\n TCP protocol is replaced by a
+    // text WebSocket message. Server-side WebSocket proxy handles routing.
+    if (state != CONNECTED && state != IN_GAME) return false;
+    return SendCommand(data);
+}
+
 // ---------------------------------------------------------------------------
 // Static stubs — TCP/UDP not available in browser
 // ---------------------------------------------------------------------------
