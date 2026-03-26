@@ -25,6 +25,9 @@ set(EMSCRIPTEN_FLAGS "${EMSCRIPTEN_FLAGS} -s TOTAL_MEMORY=268435456")
 # Asset preloading - all game assets bundled into virtual filesystem
 set(EMSCRIPTEN_FLAGS "${EMSCRIPTEN_FLAGS} --preload-file ${CMAKE_SOURCE_DIR}/share@/share")
 
+# WebSocket support (required for emscripten/websocket.h)
+set(EMSCRIPTEN_FLAGS "${EMSCRIPTEN_FLAGS} -lwebsocket.js")
+
 # Exported functions for JavaScript interop
 set(EMSCRIPTEN_FLAGS "${EMSCRIPTEN_FLAGS} -s EXPORTED_RUNTIME_METHODS=['cwrap','ccall','setValue','getValue','UTF8ToString','stringToUTF8']")
 
