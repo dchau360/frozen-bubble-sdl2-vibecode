@@ -55,6 +55,7 @@ public:
     void CallGamePause() { IsGamePause = !IsGamePause; };
 
     uint8_t RunForEver();
+    void RunOneFrame();
     GameState currentState = TitleScreen;
 
     FrozenBubble(const FrozenBubble& obj) = delete;
@@ -90,7 +91,6 @@ private:
     TTFText menuText;
 
     void HandleInput(SDL_Event *e);
-    void RunOneFrame();
 
     // Frame timing — used by RunOneFrame (persist across calls in WASM)
     unsigned int frameTicks = 0;
