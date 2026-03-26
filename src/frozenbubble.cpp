@@ -111,8 +111,11 @@ FrozenBubble::FrozenBubble() {
     }
 #endif
 
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init failed: %s", SDL_GetError());
+    // Init video only — audio requires a user gesture in browsers and is
+    // initialized later by AudioMixer. SDL_INIT_AUDIO here would fail on
+    // Emscripten and cause the constructor to bail before creating the window.
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init(VIDEO) failed: %s", SDL_GetError());
         IsGameQuit = true;
         return;
     }
