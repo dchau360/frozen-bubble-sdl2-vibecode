@@ -51,6 +51,11 @@ public:
     void Render(void);
     void RefreshCandy();
     void HandleInput(SDL_Event *e);
+    bool IsAwaitingKeyBind() const { return showingKeysPanel && awaitKp; }
+    bool HasAnyPanelOpen() const {
+        return showingKeysPanel || showingSPPanel || showing2PPanel || showingOptPanel
+            || showingNetPanel || showingLevelPanel || showingLocalMPPanel || showingNetSetupPanel;
+    }
     void SetupNewGame(int mode);
     void ShowPanel(int which);
     void ReturnToMenu();

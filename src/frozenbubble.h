@@ -63,6 +63,19 @@ public:
 private:
     int addictedTime = 0;
     bool IsGameQuit = false, IsGamePause = false;
+    Uint32 lastBackPressTime = 0;
+
+    // Per-controller state: joystick instance ID + axis hold flags
+    struct ControllerState {
+        SDL_JoystickID id;
+        bool axisLeftHeld = false, axisRightHeld = false;
+        bool axisUpHeld   = false, axisDownHeld  = false;
+    };
+    std::vector<ControllerState> controllers;
+
+    void HandleControllerEvent(SDL_Event *e);
+    static void PushKey(SDL_Keycode key, bool down);
+    static void PushScancode(SDL_Scancode sc, bool down);
     SDL_Window *window;
     SDL_Renderer *renderer;
 

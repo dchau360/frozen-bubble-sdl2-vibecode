@@ -154,6 +154,20 @@ FrozenBubble::FrozenBubble() {
     mainMenu = new MainMenu(renderer);
     mainGame = new BubbleGame(renderer);
 
+    // Initialize game controller support
+    SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER);
+    for (int i = 0; i < SDL_NumJoysticks(); i++) {
+        if (SDL_IsGameController(i)) {
+            SDL_GameController *gc = SDL_GameControllerOpen(i);
+            if (gc) {
+                SDL_JoystickID id = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gc));
+                ControllerState cs;
+                cs.id = id;
+                controllers.push_back(cs);
+                SDL_Log("Opened controller %d: %s", (int)controllers.size(), SDL_GameControllerName(gc));
+            }
+        }
+    }
 }
 
 FrozenBubble::~FrozenBubble() {
@@ -209,6 +223,12 @@ uint8_t FrozenBubble::RunForEver()
                     "Quit-triggering event: type=0x%x winev=%d key=%d",
                     e.type, e.window.event, e.key.keysym.sym);
             }
+            // Translate controller events to keyboard events before HandleInput
+            if (e.type == SDL_CONTROLLERBUTTONDOWN || e.type == SDL_CONTROLLERBUTTONUP ||
+                e.type == SDL_CONTROLLERAXISMOTION  || e.type == SDL_CONTROLLERDEVICEADDED) {
+                HandleControllerEvent(&e);
+                continue;
+            }
             HandleInput(&e);
         }
 
@@ -239,6 +259,154 @@ uint8_t FrozenBubble::RunForEver()
     return 0;
 }
 
+void FrozenBubble::PushKey(SDL_Keycode key, bool down) {
+    SDL_Event ev{};
+    ev.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+    ev.key.state = down ? SDL_PRESSED : SDL_RELEASED;
+    ev.key.keysym.sym = key;
+    ev.key.keysym.scancode = SDL_GetScancodeFromKey(key);
+    SDL_PushEvent(&ev);
+}
+
+void FrozenBubble::PushScancode(SDL_Scancode sc, bool down) {
+    // For virtual scancodes (controller bindings), update the shared virtual key state
+    // instead of pushing a synthetic event, since SDL_GetKeyboardState doesn't track
+    // synthesized events for out-of-range scancodes.
+    if (IsVirtualScancode(sc)) {
+        virtualKeyState[sc - CTRL_SC_BASE] = down;
+        return;
+    }
+    SDL_Event ev{};
+    ev.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+    ev.key.state = down ? SDL_PRESSED : SDL_RELEASED;
+    ev.key.keysym.scancode = sc;
+    ev.key.keysym.sym = SDL_GetKeyFromScancode(sc);
+    SDL_PushEvent(&ev);
+}
+
+void FrozenBubble::HandleControllerEvent(SDL_Event *e) {
+    // Hot-plug: open newly connected controllers and assign to next player slot
+    if (e->type == SDL_CONTROLLERDEVICEADDED) {
+        SDL_GameController *gc = SDL_GameControllerOpen(e->cdevice.which);
+        if (gc) {
+            SDL_JoystickID id = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gc));
+            // Only add if not already tracked
+            bool found = false;
+            for (auto& cs : controllers) if (cs.id == id) { found = true; break; }
+            if (!found) {
+                ControllerState cs;
+                cs.id = id;
+                controllers.push_back(cs);
+                SDL_Log("Controller connected: %s → player %d", SDL_GameControllerName(gc), (int)controllers.size());
+            }
+        }
+        return;
+    }
+
+    // Find the ControllerState for this event's joystick ID
+    SDL_JoystickID evId = (e->type == SDL_CONTROLLERAXISMOTION) ? e->caxis.which : e->cbutton.which;
+    ControllerState *cs = nullptr;
+    int playerIdx = 0;
+    for (int i = 0; i < (int)controllers.size(); i++) {
+        if (controllers[i].id == evId) { cs = &controllers[i]; playerIdx = i; break; }
+    }
+    if (!cs) return;
+
+    // Get this player's key bindings
+    GameSettings* gs = GameSettings::Instance();
+    PlayerKeys* allKeys[] = {
+        &gs->player1Keys, &gs->player2Keys, &gs->player3Keys,
+        &gs->player4Keys, &gs->player5Keys
+    };
+    PlayerKeys* pk = allKeys[playerIdx < 5 ? playerIdx : 0];
+
+    if (e->type == SDL_CONTROLLERBUTTONDOWN || e->type == SDL_CONTROLLERBUTTONUP) {
+        bool down = (e->type == SDL_CONTROLLERBUTTONDOWN);
+
+        // If the Keys panel is waiting for a binding, emit a virtual scancode
+        if (down && mainMenu->IsAwaitingKeyBind()) {
+            SDL_Scancode vsc = (SDL_Scancode)(300 + playerIdx * 20 + e->cbutton.button);
+            PushScancode(vsc, true);
+            return;
+        }
+
+        // Outside of an active game, always use standard nav keys so menus work.
+        // In-game: write directly to controllerInputs[] so bubblegame can poll it
+        // (SDL_GetKeyboardState does not reflect synthetic SDL_PushEvent KEYDOWN events).
+        bool inGame = (currentState == MainGame);
+        SDL_Log("CtrlBtn: player=%d btn=%d down=%d inGame=%d", playerIdx, e->cbutton.button, down, inGame);
+        if (inGame) {
+            switch (e->cbutton.button) {
+                case SDL_CONTROLLER_BUTTON_DPAD_LEFT:  controllerInputs[playerIdx].left   = down; break;
+                case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: controllerInputs[playerIdx].right  = down; break;
+                case SDL_CONTROLLER_BUTTON_DPAD_UP:    controllerInputs[playerIdx].fire   = down; break;
+                case SDL_CONTROLLER_BUTTON_DPAD_DOWN:  controllerInputs[playerIdx].center = down; break;
+                case SDL_CONTROLLER_BUTTON_A:          controllerInputs[playerIdx].fire   = down; break;
+                case SDL_CONTROLLER_BUTTON_B:          PushKey(SDLK_AC_BACK, down); break;
+                case SDL_CONTROLLER_BUTTON_START:      PushKey(SDLK_PAUSE,   down); break;
+                default: break;
+            }
+        } else {
+            switch (e->cbutton.button) {
+                case SDL_CONTROLLER_BUTTON_DPAD_LEFT:  PushKey(SDLK_LEFT,   down); break;
+                case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: PushKey(SDLK_RIGHT,  down); break;
+                case SDL_CONTROLLER_BUTTON_DPAD_UP:    PushKey(SDLK_UP,     down); break;
+                case SDL_CONTROLLER_BUTTON_DPAD_DOWN:  PushKey(SDLK_DOWN,   down); break;
+                case SDL_CONTROLLER_BUTTON_A:          PushKey(SDLK_RETURN, down); break;
+                case SDL_CONTROLLER_BUTTON_B:          PushKey(SDLK_AC_BACK, down); break;
+                case SDL_CONTROLLER_BUTTON_START:      PushKey(SDLK_PAUSE,   down); break;
+                default: break;
+            }
+        }
+    }
+
+    if (e->type == SDL_CONTROLLERAXISMOTION) {
+        const Sint16 DEAD = 8000;
+        Sint16 val = e->caxis.value;
+
+        bool inGame = (currentState == MainGame);
+        if (e->caxis.axis == SDL_CONTROLLER_AXIS_LEFTX) {
+            bool wantLeft  = val < -DEAD;
+            bool wantRight = val >  DEAD;
+            if (inGame) {
+                // Write directly to controllerInputs — SDL_GetKeyboardState ignores synthetic events
+                if (wantLeft  != cs->axisLeftHeld)  { controllerInputs[playerIdx].left  = wantLeft;  cs->axisLeftHeld  = wantLeft;  }
+                if (wantRight != cs->axisRightHeld) { controllerInputs[playerIdx].right = wantRight; cs->axisRightHeld = wantRight; }
+            } else {
+                SDL_Scancode scLeft  = mainMenu->IsAwaitingKeyBind()
+                    ? (SDL_Scancode)(300 + playerIdx * 20 + SDL_CONTROLLER_BUTTON_DPAD_LEFT)
+                    : SDL_SCANCODE_LEFT;
+                SDL_Scancode scRight = mainMenu->IsAwaitingKeyBind()
+                    ? (SDL_Scancode)(300 + playerIdx * 20 + SDL_CONTROLLER_BUTTON_DPAD_RIGHT)
+                    : SDL_SCANCODE_RIGHT;
+                if (wantLeft  && !cs->axisLeftHeld)  { PushScancode(scLeft,  true);  cs->axisLeftHeld  = true;  }
+                if (!wantLeft &&  cs->axisLeftHeld)  { PushScancode(scLeft,  false); cs->axisLeftHeld  = false; }
+                if (wantRight && !cs->axisRightHeld) { PushScancode(scRight, true);  cs->axisRightHeld = true;  }
+                if (!wantRight && cs->axisRightHeld) { PushScancode(scRight, false); cs->axisRightHeld = false; }
+            }
+        }
+        if (e->caxis.axis == SDL_CONTROLLER_AXIS_LEFTY) {
+            bool wantUp   = val < -DEAD;
+            bool wantDown = val >  DEAD;
+            if (inGame) {
+                if (wantUp   != cs->axisUpHeld)   { controllerInputs[playerIdx].fire   = wantUp;   cs->axisUpHeld   = wantUp;   }
+                if (wantDown != cs->axisDownHeld)  { controllerInputs[playerIdx].center = wantDown; cs->axisDownHeld = wantDown; }
+            } else {
+                SDL_Scancode scUp   = mainMenu->IsAwaitingKeyBind()
+                    ? (SDL_Scancode)(300 + playerIdx * 20 + SDL_CONTROLLER_BUTTON_DPAD_UP)
+                    : SDL_SCANCODE_UP;
+                SDL_Scancode scDown = mainMenu->IsAwaitingKeyBind()
+                    ? (SDL_Scancode)(300 + playerIdx * 20 + SDL_CONTROLLER_BUTTON_DPAD_DOWN)
+                    : SDL_SCANCODE_DOWN;
+                if (wantUp   && !cs->axisUpHeld)   { PushScancode(scUp,   true);  cs->axisUpHeld   = true;  }
+                if (!wantUp  &&  cs->axisUpHeld)   { PushScancode(scUp,   false); cs->axisUpHeld   = false; }
+                if (wantDown && !cs->axisDownHeld) { PushScancode(scDown, true);  cs->axisDownHeld = true;  }
+                if (!wantDown && cs->axisDownHeld) { PushScancode(scDown, false); cs->axisDownHeld = false; }
+            }
+        }
+    }
+}
+
 void FrozenBubble::HandleInput(SDL_Event *e) {
     switch(e->type) {
         case SDL_WINDOWEVENT:
@@ -263,6 +431,20 @@ void FrozenBubble::HandleInput(SDL_Event *e) {
         case SDL_KEYDOWN:
             if(e->key.repeat) break;
             switch(e->key.keysym.sym) {
+                case SDLK_AC_BACK:
+                case SDLK_ESCAPE:
+                {
+                    // Only trigger double-back-to-quit when at the root menu (no panels open)
+                    if (currentState == TitleScreen && !mainMenu->HasAnyPanelOpen()) {
+                        Uint32 now = SDL_GetTicks();
+                        if (now - lastBackPressTime < 2000) {
+                            IsGameQuit = true;
+                        }
+                        lastBackPressTime = now;
+                    }
+                    // Always let mainMenu/mainGame handle it too (closes panels, cancels, etc.)
+                    break;
+                }
                 case SDLK_F12:
                     gameOptions->SetValue("GFX:Fullscreen", "");
                     SDL_SetWindowFullscreen(window, gameOptions->fullscreenMode() ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);

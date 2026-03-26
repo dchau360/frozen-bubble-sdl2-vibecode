@@ -156,7 +156,7 @@ void MenuButton::Pressed(void *parent)
     else if(buttonName == "langame") ((MainMenu *)parent)->ShowPanel(3); // LAN: UDP broadcast discovery
     else if(buttonName == "netgame") ((MainMenu *)parent)->ShowPanel(5); // Net: manual server entry
     else if(buttonName == "keys") ((MainMenu *)parent)->ShowPanel(4); // Keys configuration
-    else if(buttonName == "exit") FrozenBubble::Instance()->CallGameQuit();
+    else if(buttonName == "highscores") HighscoreManager::Instance()->ShowScoreScreen(0);
 }
 
 void MenuButton::Activate()

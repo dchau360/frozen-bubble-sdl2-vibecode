@@ -26,6 +26,33 @@
 #include <mutex>
 #include <string>
 
+// Virtual scancode base for controller button bindings.
+// Virtual scancode = CTRL_SC_BASE + playerSlot * 20 + SDL_GameControllerButton
+#define CTRL_SC_BASE 300
+#define CTRL_SC_COUNT 100  // 5 players * 20 buttons each
+
+// Shared virtual key state written by frozenbubble.cpp, read by bubblegame.cpp.
+// Index = (virtualScancode - CTRL_SC_BASE)
+extern bool virtualKeyState[CTRL_SC_COUNT];
+
+// Per-player controller input state written by frozenbubble.cpp HandleControllerEvent.
+// bubblegame.cpp ORs these with keyboard state in UpdatePenguin.
+struct ControllerInput {
+    bool left = false, right = false, fire = false, center = false;
+};
+extern ControllerInput controllerInputs[5];
+
+inline bool IsVirtualScancode(SDL_Scancode sc) {
+    return sc >= CTRL_SC_BASE && sc < (SDL_Scancode)(CTRL_SC_BASE + CTRL_SC_COUNT);
+}
+
+// Poll either real keyboard or virtual (controller) key state
+inline bool IsKeyPressed(SDL_Scancode sc) {
+    if (IsVirtualScancode(sc))
+        return virtualKeyState[sc - CTRL_SC_BASE];
+    return SDL_GetKeyboardState(NULL)[sc] != 0;
+}
+
 struct PlayerKeys {
     SDL_Scancode left, right, fire, center;
 };

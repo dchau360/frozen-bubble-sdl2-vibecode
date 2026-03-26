@@ -24,6 +24,8 @@
 #include <cstring>
 
 GameSettings *GameSettings::ptrInstance = new GameSettings();
+bool virtualKeyState[CTRL_SC_COUNT] = {};
+ControllerInput controllerInputs[5] = {};
 
 void GameSettings::InitPrefPath() {
     if (!prefPath)

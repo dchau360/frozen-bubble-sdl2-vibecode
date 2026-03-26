@@ -669,10 +669,10 @@ void SetupGameMetrics(BubbleArray *bArray, int playerCount, bool lowGfx, bool lo
                 bArray[0].lGfxShooterRct.w = bArray[0].lGfxShooterRct.h = 2;
                 bArray[1].lGfxShooterRct.w = bArray[1].lGfxShooterRct.h = 2;
             }
-            bArray[0].curLaunchRct = {SCREEN_CENTER_X+144, 480-89, 32, 32};
-            bArray[0].nextBubbleRct = {SCREEN_CENTER_X+144, 480-40, 32, 32};
-            bArray[0].onTopRct = {SCREEN_CENTER_X+140, 480-43, 39, 39};
-            bArray[0].frozenBottomRct = {SCREEN_CENTER_X+139, 480-43, 39, 39};
+            bArray[0].curLaunchRct = {SCREEN_CENTER_X+148, 480-89, 32, 32};
+            bArray[0].nextBubbleRct = {SCREEN_CENTER_X+148, 480-40, 32, 32};
+            bArray[0].onTopRct = {SCREEN_CENTER_X+144, 480-43, 39, 39};
+            bArray[0].frozenBottomRct = {SCREEN_CENTER_X+143, 480-43, 39, 39};
 
             bArray[1].curLaunchRct = {SCREEN_CENTER_X-176, 480-89, 32, 32};
             bArray[1].nextBubbleRct = {SCREEN_CENTER_X-176, 480-40, 32, 32};
@@ -706,6 +706,8 @@ void SetupGameMetrics(BubbleArray *bArray, int playerCount, bool lowGfx, bool lo
 }
 
 void BubbleGame::NewGame(SetupSettings setup) {
+    // Clear any stale controller input state from previous session
+    for (int i = 0; i < 5; i++) controllerInputs[i] = {};
     audMixer = AudioMixer::Instance();
     SDL_Renderer *rend = const_cast<SDL_Renderer*>(renderer);
     currentSettings = setup;
@@ -1574,10 +1576,13 @@ void BubbleGame::UpdatePenguin(BubbleArray &bArray) {
                 // Note: on Android TV, opening SDL_GameController can suppress d-pad
                 // keyboard events, so keyboard must be read unconditionally first.
                 int idx = bArray.playerAssigned;
-                bArray.shooterLeft   = SDL_GetKeyboardState(NULL)[keys.left]   != 0;
-                bArray.shooterRight  = SDL_GetKeyboardState(NULL)[keys.right]  != 0;
-                bArray.shooterCenter = SDL_GetKeyboardState(NULL)[keys.center] != 0;
-                bArray.shooterAction = SDL_GetKeyboardState(NULL)[keys.fire]   != 0;
+                // IsKeyPressed() handles real keyboard and virtual controller scancodes.
+                // Also OR with controllerInputs[] which frozenbubble.cpp writes directly
+                // (SDL_GetKeyboardState ignores synthetic SDL_PushEvent KEYDOWN events).
+                bArray.shooterLeft   = IsKeyPressed(keys.left)   || controllerInputs[idx].left;
+                bArray.shooterRight  = IsKeyPressed(keys.right)  || controllerInputs[idx].right;
+                bArray.shooterCenter = IsKeyPressed(keys.center) || controllerInputs[idx].center;
+                bArray.shooterAction = IsKeyPressed(keys.fire)   || controllerInputs[idx].fire;
                 if (idx < numControllersOpen && controllers[idx]) {
                     SDL_GameController* ctrl = controllers[idx];
                     bArray.shooterLeft   = bArray.shooterLeft   || SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_LEFT)  != 0;
@@ -1587,16 +1592,16 @@ void BubbleGame::UpdatePenguin(BubbleArray &bArray) {
                                         || SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_UP)                            != 0;
                 }
             } else if (bArray.playerAssigned == 0) {
-                bArray.shooterAction = SDL_GetKeyboardState(NULL)[keys.fire];
-                bArray.shooterLeft = SDL_GetKeyboardState(NULL)[keys.left];
-                bArray.shooterRight = SDL_GetKeyboardState(NULL)[keys.right];
-                bArray.shooterCenter = SDL_GetKeyboardState(NULL)[keys.center];
+                bArray.shooterAction = IsKeyPressed(keys.fire);
+                bArray.shooterLeft   = IsKeyPressed(keys.left);
+                bArray.shooterRight  = IsKeyPressed(keys.right);
+                bArray.shooterCenter = IsKeyPressed(keys.center);
             }
             else if (bArray.playerAssigned == 1) {
-                bArray.shooterAction = SDL_GetKeyboardState(NULL)[keys.fire];
-                bArray.shooterLeft = SDL_GetKeyboardState(NULL)[keys.left];
-                bArray.shooterRight = SDL_GetKeyboardState(NULL)[keys.right];
-                bArray.shooterCenter = SDL_GetKeyboardState(NULL)[keys.center];
+                bArray.shooterAction = IsKeyPressed(keys.fire);
+                bArray.shooterLeft   = IsKeyPressed(keys.left);
+                bArray.shooterRight  = IsKeyPressed(keys.right);
+                bArray.shooterCenter = IsKeyPressed(keys.center);
             }
         } else {
             // Player is dead or game finished - clear all shooter flags
@@ -4000,6 +4005,7 @@ void BubbleGame::HandleInput(SDL_Event *e) {
             }
             if(e->key.repeat) break;
             switch(e->key.keysym.sym) {
+                case SDLK_AC_BACK:
                 case SDLK_ESCAPE:
                     if (chattingMode) {
                         chattingMode = false;
@@ -4138,6 +4144,8 @@ void BubbleGame::HandleInput(SDL_Event *e) {
 void BubbleGame::QuitToTitle() {
     SDL_Log("!!! QuitToTitle() called - returning to menu (gameFinish=%d, gameWon=%d, gameLost=%d)",
             gameFinish, gameWon, gameLost);
+    // Clear shared controller input state so stale presses don't carry into menus
+    for (int i = 0; i < 5; i++) controllerInputs[i] = {};
     if (currentSettings.localMultiplayer) {
         CloseControllers();
     }

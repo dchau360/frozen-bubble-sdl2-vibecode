@@ -40,6 +40,22 @@
 #endif
 #endif
 
+// Virtual scancodes for controller buttons: CTRL_SC_BASE + controllerSlot*20 + SDL_GameControllerButton
+static SDL_Scancode ControllerButtonScancode(int controllerSlot, SDL_GameControllerButton btn) {
+    return (SDL_Scancode)(CTRL_SC_BASE + controllerSlot * 20 + (int)btn);
+}
+static std::string ControllerScancodeName(SDL_Scancode sc) {
+    if (!IsVirtualScancode(sc)) return SDL_GetScancodeName(sc);
+    int rel = sc - CTRL_SC_BASE;
+    int slot = rel / 20;
+    int btn  = rel % 20;
+    const char* btnNames[] = {"A","B","X","Y","Back","Guide","Start",
+                               "LS","RS","LB","RB","DUp","DDown","DLeft","DRight"};
+    char buf[32];
+    snprintf(buf, sizeof(buf), "Ctrl%d:%s", slot + 1, btn < 15 ? btnNames[btn] : "?");
+    return buf;
+}
+
 // Returns true if something is already listening on localhost:port
 static bool portInUse(int port) {
 #ifdef _WIN32
@@ -93,7 +109,7 @@ MainMenu::MainMenu(const SDL_Renderer *renderer)
         {"editor", "editor", 67}, 
         {"graphics", "graphics", 30}, 
         {"keys", "keys", 80}, 
-        {"exit", "exit", 89}
+        {"highscores", "highscore", 89}
     };
     uint32_t y_start = 14;
     for(size_t i = 0; i < std::size(texts); i++) {
@@ -1273,6 +1289,7 @@ void MainMenu::HandleInput(SDL_Event *e){
                 case SDLK_n:
                     if(SDL_GetKeyboardState(NULL)[SDL_SCANCODE_LCTRL] == SDL_PRESSED) RefreshCandy();
                     break;
+                case SDLK_AC_BACK:
                 case SDLK_ESCAPE:
                     if (showingSPPanel) {
                         AudioMixer::Instance()->PlaySFX("cancel");
@@ -1752,11 +1769,11 @@ void MainMenu::KeysPanelRender() {
         "UP/DOWN select, ENTER change\n"
         "ESC when done",
         keyConfigPlayer,
-        keyConfigIndex == 0 ? indicator : "  ", SDL_GetScancodeName(pk.left),
-        keyConfigIndex == 1 ? indicator : "  ", SDL_GetScancodeName(pk.right),
-        keyConfigIndex == 2 ? indicator : "  ", SDL_GetScancodeName(pk.fire),
-        keyConfigIndex == 3 ? indicator : "  ", SDL_GetScancodeName(pk.center),
-        awaitKp ? "Press any key..." : "");
+        keyConfigIndex == 0 ? indicator : "  ", ControllerScancodeName(pk.left).c_str(),
+        keyConfigIndex == 1 ? indicator : "  ", ControllerScancodeName(pk.right).c_str(),
+        keyConfigIndex == 2 ? indicator : "  ", ControllerScancodeName(pk.fire).c_str(),
+        keyConfigIndex == 3 ? indicator : "  ", ControllerScancodeName(pk.center).c_str(),
+        awaitKp ? "Press button or key..." : "");
 
     panelText.UpdateText(const_cast<SDL_Renderer *>(renderer), keyText, 0);
     panelText.UpdatePosition({(640/2) - (panelText.Coords()->w / 2), (480/2) - 120});
