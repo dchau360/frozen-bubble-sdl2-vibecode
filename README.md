@@ -97,41 +97,6 @@ The server binary (`fb-server`) is built automatically on Linux and macOS alongs
 
 `start-server.sh` enables both TCP (direct connections) and UDP broadcast (LAN auto-discovery) by default.
 
-### Browser (WebAssembly) clients require WSS
-
-The browser version (itch.io / Netlify) connects via WebSocket. Browsers block plain `ws://` connections from HTTPS pages (mixed content). To accept connections from browser players your server must be reachable over **`wss://`** (WebSocket Secure).
-
-The simplest setup is a reverse proxy in front of `fb-server`. You need a **domain name** and a **TLS certificate** (free via Let's Encrypt).
-
-**Caddy** — easiest option, fetches and renews Let's Encrypt certs automatically:
-```
-yourdomain.com {
-    reverse_proxy /fb localhost:1511
-}
-```
-
-**nginx** — requires obtaining a certificate first (e.g. `certbot --nginx -d yourdomain.com`):
-```nginx
-server {
-    listen 443 ssl;
-    server_name yourdomain.com;
-
-    ssl_certificate     /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-
-    location /fb {
-        proxy_pass http://127.0.0.1:1511;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
-
-Browser clients then connect to `wss://yourdomain.com/fb` in the Net Game IP field.
-
-Desktop clients (Linux / macOS / Windows / Android) connect over plain TCP and are unaffected by this requirement.
-
 ---
 
 ## Network Play Quick Start
@@ -219,9 +184,9 @@ Or right-click the app → **Open** → **Open** to bypass Gatekeeper once.
 
 - [ ] Implement single-player malus targeting to match original Perl behavior
 - [ ] Polish network lobby room/player list layout
-- [ ] WebAssembly: implement public server fetch via `emscripten_fetch`
 - [ ] Sign macOS `.app` bundle for Gatekeeper compatibility
 - [ ] Sign Windows installer for SmartScreen compatibility
+- [ ] Fork WebAssembly build into a dedicated web repo with its own WSS-capable server (browser clients require `wss://`; fb-server currently speaks plain TCP only)
 
 ---
 

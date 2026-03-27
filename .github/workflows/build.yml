@@ -321,10 +321,12 @@ jobs:
           path: frozen-bubble-android-tv.apk
 
   # ────────────────────────────────────────────────────────────────
-  # WebAssembly → Netlify
+  # WebAssembly — disabled pending fork into dedicated web repo
+  # Re-enable by removing the `if: false` line below
   # ────────────────────────────────────────────────────────────────
   build-wasm:
     name: WebAssembly (Netlify)
+    if: false
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -416,16 +418,13 @@ jobs:
   # ────────────────────────────────────────────────────────────────
   release:
     name: Create Release
-    needs: [build-linux, build-macos, build-windows, build-android, build-wasm]
+    needs: [build-linux, build-macos, build-windows, build-android]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
-
-      - name: Zip WASM build for self-hosting
-        run: cd WebAssembly && zip -r ../frozen-bubble-web.zip . && cd ..
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -435,4 +434,3 @@ jobs:
             macOS/frozen-bubble-macos.dmg
             Windows/frozen-bubble-windows-setup.exe
             Android/frozen-bubble-android-tv.apk
-            frozen-bubble-web.zip
