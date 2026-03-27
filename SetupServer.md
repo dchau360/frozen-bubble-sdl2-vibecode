@@ -2,49 +2,36 @@
 
 This guide walks through running a public server that supports both:
 
-- **Native clients** (desktop, Android) — connect via raw TCP on port **1511**
-- **Browser clients** (itch.io / WASM) — connect via secure WebSocket (`wss://`) on port **443**
+- **Native clients** (desktop, Android) — raw TCP on port **1511**
+- **Browser clients** (itch.io / WASM) — secure WebSocket (`wss://`) on port **443**
+
+> **Browser clients require a valid SSL certificate on a real domain name.**
+> A plain IP address or self-signed certificate will be rejected by browsers.
+> Native clients are unaffected — they connect on port 1511 without SSL.
+
+The free path covered here uses **Oracle Cloud** (free VPS) + **No-IP** (free domain) +
+**Let's Encrypt** (free SSL certificate).
 
 ---
 
-## Requirements
+## Step 1 — Create a Server (Oracle Cloud Free Tier)
 
-| What | Why |
-|---|---|
-| A domain name pointing to your server | **Required for browser clients.** Browsers block unencrypted WebSocket connections (`ws://`) from HTTPS pages. You need a real domain so Let's Encrypt can issue a valid TLS certificate. A plain IP address will not work for browser players. |
-| A Linux VPS | Any provider (DigitalOcean, Linode, Hetzner, etc.). Oracle Cloud's **Always Free** tier works well — see note below. |
-| Ports 80, 443, 1511 open | In your VPS firewall / security group |
-| Docker + Docker Compose installed | [Install Docker](https://docs.docker.com/engine/install/) |
+Oracle Cloud's Always Free tier includes 2 AMD VMs (1 OCPU, 1 GB RAM) — more than
+enough for fb-server.
 
-> **Browser clients only work with a valid SSL certificate on a real domain.**
-> Self-signed certificates will be rejected by browsers. Native desktop and Android
-> clients are not affected — they connect on port 1511 without SSL.
+1. Sign up at [cloud.oracle.com](https://cloud.oracle.com)
+2. Create an instance: **Compute → Instances → Create Instance**
+   - Image: **Ubuntu 22.04**
+   - Shape: **VM.Standard.E2.1.Micro** (Always Free)
+3. Note the instance's **Public IP address** — you'll need it in Step 2
 
-### Getting a free domain with No-IP
+**Open ports in the VCN security list:**
 
-If you don't have a domain, [No-IP](https://www.noip.com) offers free dynamic DNS hostnames (e.g. `yourname.ddns.net`). These work with Let's Encrypt, so you can get a valid SSL certificate at no cost.
+Go to **Networking → Virtual Cloud Networks → your VCN → Security Lists → Default**
+and add ingress rules for TCP ports **80**, **443**, and **1511**.
 
-1. Create a free account at [noip.com](https://www.noip.com)
-2. Go to **Dynamic DNS → No-IP Hostnames → Create Hostname**
-3. Choose a hostname (e.g. `myfbserver.ddns.net`) and point it at your server's public IP
-4. Install the No-IP Dynamic Update Client on your server so the hostname stays current if your IP changes:
-   ```bash
-   sudo apt install noip2
-   sudo noip2 -C   # enter your No-IP credentials when prompted
-   sudo systemctl enable noip2 --now
-   ```
-
-Use `myfbserver.ddns.net` anywhere this guide refers to `yourdomain.com`.
-
-> Free No-IP hostnames require confirmation every 30 days to stay active — you'll get an email reminder.
-
----
-
-### Oracle Cloud Always Free tier
-
-Oracle Cloud's Always Free tier is a good zero-cost option. It includes 2 AMD VMs (1 OCPU, 1 GB RAM) and up to 4 ARM instances — any of these are more than enough to run fb-server.
-
-**Oracle-specific gotcha:** Oracle Cloud images have OS-level `iptables` rules that block ports even after you open them in the VCN security list. After opening ports 80, 443, and 1511 in the security list, also run this on the instance:
+**Also open ports in the OS firewall** (Oracle images block ports at the OS level
+even after the security list is updated — this catches a lot of people):
 
 ```bash
 sudo iptables -I INPUT -p tcp --dport 80 -j ACCEPT
@@ -53,20 +40,62 @@ sudo iptables -I INPUT -p tcp --dport 1511 -j ACCEPT
 sudo netfilter-persistent save
 ```
 
-Without this step the ports will appear open in Oracle's dashboard but connections will silently time out.
+> Using a different VPS provider? Just ensure ports 80, 443, and 1511 are open in
+> your provider's firewall / security group and skip the iptables step unless your
+> OS firewall also blocks them.
 
 ---
 
-## Setup
+## Step 2 — Get a Free Domain (No-IP)
 
-### 1. Clone the repo
+Now that you have your server's public IP, point a domain at it.
+[No-IP](https://www.noip.com) offers free dynamic DNS hostnames (e.g. `myfbserver.ddns.net`)
+that work with Let's Encrypt.
+
+1. Create a free account at [noip.com](https://www.noip.com)
+2. Go to **Dynamic DNS → No-IP Hostnames → Create Hostname**
+3. Choose a hostname and enter your server's public IP from Step 1
+4. Install the No-IP Dynamic Update Client on your server so the hostname stays
+   current if your IP ever changes:
+
+```bash
+sudo apt install noip2
+sudo noip2 -C          # enter your No-IP credentials when prompted
+sudo systemctl enable noip2 --now
+```
+
+> Free No-IP hostnames require confirmation every 30 days to stay active —
+> you'll receive an email reminder.
+
+Use your No-IP hostname (e.g. `myfbserver.ddns.net`) anywhere this guide
+refers to `yourdomain.com`.
+
+> Already have a paid domain? Skip this step and point your DNS A record at
+> the server's public IP instead.
+
+---
+
+## Step 3 — Install Docker
+
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-compose-plugin
+sudo systemctl enable docker --now
+sudo usermod -aG docker $USER   # lets you run docker without sudo (re-login after)
+```
+
+---
+
+## Step 4 — Clone the Repo
 
 ```bash
 git clone https://github.com/dchau360/frozen-bubble-sdl2.git
 cd frozen-bubble-sdl2
 ```
 
-### 2. Get a free SSL certificate
+---
+
+## Step 5 — Get a Free SSL Certificate (Let's Encrypt)
 
 Run certbot **before** starting Docker so port 80 is free:
 
@@ -75,49 +104,32 @@ sudo apt install certbot
 sudo certbot certonly --standalone -d yourdomain.com
 ```
 
-Replace `yourdomain.com` with your actual domain. Certbot will verify ownership
-over port 80 and write the certificate files to
+Certbot verifies ownership over port 80 and writes the certificate to
 `/etc/letsencrypt/live/yourdomain.com/`.
 
-### 3. Copy the certificates into place
+---
+
+## Step 6 — Copy the Certificates into Place
 
 ```bash
 sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem docker/ssl/fullchain.pem
 sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem   docker/ssl/privkey.pem
-```
-
-### 4. Start the server
-
-```bash
-cd docker
-./setup.sh
-```
-
-This builds fb-server from source and starts both the game server and the nginx
-TLS proxy. To run in the background:
-
-```bash
-./setup.sh -d
-```
-
-To stop:
-
-```bash
-docker compose down
 ```
 
 ---
 
-## Renewing the Certificate
-
-Let's Encrypt certificates expire after 90 days. To renew:
+## Step 7 — Start the Server
 
 ```bash
-docker compose down                    # free port 80
-sudo certbot renew
-sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem docker/ssl/fullchain.pem
-sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem   docker/ssl/privkey.pem
-cd docker && ./setup.sh -d
+cd docker
+./setup.sh -d          # -d runs in background
+```
+
+This builds fb-server from source and starts both the game server and the nginx
+TLS proxy. To stop:
+
+```bash
+docker compose down
 ```
 
 ---
@@ -133,25 +145,33 @@ In the game: **Net Game** → enter the host and port above → **Connect**.
 
 ---
 
+## Renewing the Certificate
+
+Let's Encrypt certificates expire after 90 days. To renew:
+
+```bash
+cd docker && docker compose down     # free port 80
+sudo certbot renew
+sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem docker/ssl/fullchain.pem
+sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem   docker/ssl/privkey.pem
+./setup.sh -d
+```
+
+---
+
 ## Adding Your Server to the Public List
 
 The game fetches a community server list from
 [github.com/dchau360/frozen-bubble-servers](https://github.com/dchau360/frozen-bubble-servers)
-at startup. Submit a pull request to add your server so players can find it
-automatically.
+at startup. Submit a pull request to add your server so players can find it automatically.
 
-The list supports one entry per port, so a server with both native TCP and
-browser WebSocket support should be listed twice — once per port:
+List both ports so native and browser players can discover your server:
 
 ```
 # host:port  Display name
 yourdomain.com:1511  Your Server Name (desktop/Android)
 yourdomain.com:443   Your Server Name (browser)
 ```
-
-Native clients will show both entries; browser clients currently need to enter
-the host and port manually (public server list auto-detection for browser clients
-is not yet implemented).
 
 To submit:
 
@@ -167,8 +187,8 @@ The `setup.sh` script generates a self-signed certificate automatically if no
 valid certificate is found in `docker/ssl/`. This lets you verify the server is
 running, but browser clients will reject the self-signed cert.
 
-To test locally with native clients only:
+To test with native clients only (no Docker needed):
 
 ```bash
-./build/server/fb-server -q -l -z    # port 1511, no Docker needed
+./build/server/fb-server -q -l -z    # port 1511
 ```
