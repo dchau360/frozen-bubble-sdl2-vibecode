@@ -20,6 +20,26 @@ This guide walks through running a public server that supports both:
 > Self-signed certificates will be rejected by browsers. Native desktop and Android
 > clients are not affected — they connect on port 1511 without SSL.
 
+### Getting a free domain with No-IP
+
+If you don't have a domain, [No-IP](https://www.noip.com) offers free dynamic DNS hostnames (e.g. `yourname.ddns.net`). These work with Let's Encrypt, so you can get a valid SSL certificate at no cost.
+
+1. Create a free account at [noip.com](https://www.noip.com)
+2. Go to **Dynamic DNS → No-IP Hostnames → Create Hostname**
+3. Choose a hostname (e.g. `myfbserver.ddns.net`) and point it at your server's public IP
+4. Install the No-IP Dynamic Update Client on your server so the hostname stays current if your IP changes:
+   ```bash
+   sudo apt install noip2
+   sudo noip2 -C   # enter your No-IP credentials when prompted
+   sudo systemctl enable noip2 --now
+   ```
+
+Use `myfbserver.ddns.net` anywhere this guide refers to `yourdomain.com`.
+
+> Free No-IP hostnames require confirmation every 30 days to stay active — you'll get an email reminder.
+
+---
+
 ### Oracle Cloud Always Free tier
 
 Oracle Cloud's Always Free tier is a good zero-cost option. It includes 2 AMD VMs (1 OCPU, 1 GB RAM) and up to 4 ARM instances — any of these are more than enough to run fb-server.
