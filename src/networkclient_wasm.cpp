@@ -77,7 +77,9 @@ static EM_BOOL onWebSocketError(int /*eventType*/, const EmscriptenWebSocketErro
 static EM_BOOL onWebSocketMessage(int /*eventType*/, const EmscriptenWebSocketMessageEvent* e, void* userData) {
     WebSocketHandle* handle = (WebSocketHandle*)userData;
     if (!handle || !handle->client) return EM_TRUE;
-    if (!e->isText || !e->data || e->numBytes == 0) return EM_TRUE;
+    if (!e->data || e->numBytes == 0) return EM_TRUE;
+    // Accept both text and binary frames — server uses binary frames (opcode=2) so
+    // that GAME_CAN_START's embedded binary player-ID bytes survive the WebSocket layer.
 
     // Message data is already in e->data as a null-terminated string when isText==true
     const char* data = (const char*)e->data;

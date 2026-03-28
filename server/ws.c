@@ -183,7 +183,8 @@ ssize_t ws_send(int fd, const char* data, int len)
     /* Max game protocol message is well under 16 KB */
     unsigned char frame[16400];
     int hdr;
-    frame[0] = 0x81;            /* FIN=1, opcode=1 (text) */
+    frame[0] = 0x82;            /* FIN=1, opcode=2 (binary) — avoids UTF-8 rejection
+                                 * of GAME_CAN_START which embeds raw binary player IDs */
     if (len <= 125) {
         frame[1] = (unsigned char)len;
         hdr = 2;
