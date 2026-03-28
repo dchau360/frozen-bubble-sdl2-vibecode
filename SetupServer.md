@@ -153,6 +153,19 @@ In the game: **Net Game** → enter the host and port above → **Connect**.
 
 ---
 
+## Updating the Server
+
+When a new version of fb-server is released, rebuild the Docker image to pick up the changes:
+
+```bash
+cd frozen-bubble-sdl2/docker
+git pull
+docker compose down
+docker compose up --build -d
+```
+
+---
+
 ## Renewing the Certificate
 
 Let's Encrypt certificates expire after 90 days. To renew:
