@@ -204,16 +204,20 @@ ssize_t ws_send(int fd, const char* data, int len)
 
 /* ── WebSocket frame decode (in-place, client → server) ─────────────────── *
  *                                                                            *
- * Decodes all complete WebSocket frames in buf[0..*len-1].  Decoded payload  *
- * bytes overwrite the raw frame bytes (safe because decoded <= raw).         *
- * Any incomplete frame at the end is preserved at buf[0..remaining-1] so    *
- * the caller can save it to the fd's incoming buffer and prepend it next     *
- * time.                                                                      *
+ * Decodes all complete WebSocket frames in buf[0..*len-1] in-place.         *
  *                                                                            *
- * Returns  1  if at least one frame was fully decoded (*len = payload bytes) *
- *          0  if buffer holds only a partial frame header (*len = raw bytes  *
- *             that must be saved and retried once more data arrives)         *
- *         -1  fatal error: close frame or unsupported 64-bit length field    */
+ * On return:                                                                 *
+ *   buf[0..retval-1]        = decoded payload bytes (game messages)         *
+ *   buf[retval..*len-1]     = raw partial frame bytes (if any)              *
+ *   *len                    = retval + raw_partial_bytes                     *
+ *                                                                            *
+ * Returns:  N >= 0  number of decoded payload bytes (0 = only partial frame)*
+ *          -1       fatal error: close frame or unsupported 64-bit length   *
+ *                                                                            *
+ * Caller must:                                                               *
+ *   1. Process buf[0..retval-1] as game protocol messages                   *
+ *   2. Save buf[retval..*len-1] to the fd's incoming buffer (raw WS bytes)  *
+ *      to be prepended on the next recv and re-decoded then                 */
 
 int ws_decode_inplace(char* buf, int* len)
 {
@@ -260,12 +264,13 @@ int ws_decode_inplace(char* buf, int* len)
         if (opcode == 9) { out -= plen; continue; }
     }
 
-    *len = out;
-    return (out > 0) ? 1 : 0;
+    *len = out;     /* no partial frame: *len == retval */
+    return out;
 
 incomplete:
-    /* Preserve any partial raw frame bytes after already-decoded payload */
+    /* buf[0..out-1]           = decoded payloads (game messages)
+     * buf[out..out+partial-1] = raw partial frame bytes (must be re-decoded) */
     memmove(buf + out, buf + pos, (size_t)(total - pos));
     *len = out + (total - pos);
-    return (out > 0) ? 1 : 0;
+    return out;     /* caller saves buf[out..*len-1] as raw frame bytes */
 }

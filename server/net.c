@@ -111,6 +111,10 @@ static GList * conns_prio = NULL;
 #define INCOMING_DATA_BUFSIZE 16384
 static char * incoming_data_buffers[256];
 static int incoming_data_buffers_count[256];
+/* For WebSocket fds: partial WS frame bytes waiting for the rest of the frame.
+ * Kept separate from incoming_data_buffers, which may hold already-decoded game bytes. */
+static char * ws_raw_frame_buf[256];
+static int    ws_raw_frame_len[256];
 static time_t last_data_in[256];
 static time_t minute_for_talk_flood[256];
 int amount_talk_flood[256];
@@ -194,6 +198,9 @@ void conn_terminated(int fd, char* reason)
                 SOCKET_CLOSE(fd);
                 ws_reset(fd);
                 free(incoming_data_buffers[fd]);
+                free(ws_raw_frame_buf[fd]);
+                ws_raw_frame_buf[fd] = NULL;
+                ws_raw_frame_len[fd] = 0;
                 if (nick[fd] != NULL) {
                         free(nick[fd]);
                 }
@@ -225,10 +232,25 @@ static void handle_incoming_data_generic(gpointer data, gpointer user_data, int 
                 || (incoming_data_buffers_count[fd] > 0 && incoming_data_buffers[fd][incoming_data_buffers_count[fd]-1] == '\n'))) {
                 char buf[INCOMING_DATA_BUFSIZE];
                 ssize_t len;
+
+                /* incoming_data_buffers[fd] holds decoded game bytes from non-prio buffering.
+                 * ws_raw_frame_buf[fd] holds raw partial WS frame bytes from the last recv.
+                 * These two are kept strictly separate so ws_decode_inplace is never called
+                 * on already-decoded game protocol text. */
                 ssize_t offset = incoming_data_buffers_count[fd];
                 incoming_data_buffers_count[fd] = 0;
                 memcpy(buf, incoming_data_buffers[fd], offset);
-                len = recv(fd, buf + offset, INCOMING_DATA_BUFSIZE - 1 - offset, MSG_DONTWAIT);
+
+                /* For WebSocket fds: put any pending raw frame bytes right after the decoded
+                 * prefix, so recv() appends new raw data immediately after them. */
+                ssize_t ws_prefix = 0;
+                if (ws_is_websocket(fd)) {
+                        ws_prefix = ws_raw_frame_len[fd];
+                        ws_raw_frame_len[fd] = 0;
+                        memcpy(buf + offset, ws_raw_frame_buf[fd], ws_prefix);
+                }
+
+                len = recv(fd, buf + offset + ws_prefix, INCOMING_DATA_BUFSIZE - 1 - offset - ws_prefix, MSG_DONTWAIT);
                 if (len == -1 && !SOCK_EAGAIN) {
                         l2(OUTPUT_TYPE_DEBUG, "[%d] System error on recv: %s", fd, strerror(errno));
                         conn_terminated(fd, "system error on recv");
@@ -252,24 +274,27 @@ static void handle_incoming_data_generic(gpointer data, gpointer user_data, int 
                                 amount_talk_flood[fd] = 0;
                         }
 
-                        len += offset;
+                        len += offset + ws_prefix;
 
-                        // For WebSocket connections, decode frames before processing.
-                        // Browser clients send each game message as a single WS text frame.
-                        if (ws_is_websocket(fd) && len > 0) {
-                                int decoded = (int)len;
-                                int result = ws_decode_inplace(buf, &decoded);
-                                if (result < 0) {
+                        /* For WebSocket connections: decode only the raw portion of the buffer
+                         * (ws_prefix raw frame bytes + new recv bytes, starting at buf+offset).
+                         * buf[0..offset-1] already contains decoded game bytes — never re-decode them. */
+                        if (ws_is_websocket(fd) && len > offset) {
+                                int raw_total = (int)(len - offset);
+                                int decoded_out = ws_decode_inplace(buf + offset, &raw_total);
+                                if (decoded_out < 0) {
                                         conn_terminated(fd, "websocket protocol error");
                                         return;
                                 }
-                                if (result == 0) {
-                                        // Incomplete frame — save raw bytes and wait for more data
-                                        memcpy(incoming_data_buffers[fd], buf, (size_t)decoded);
-                                        incoming_data_buffers_count[fd] = decoded;
-                                        return;
+                                /* buf[offset..offset+decoded_out-1]          = newly decoded game payload
+                                 * buf[offset+decoded_out..offset+raw_total-1] = raw partial WS frame (if any) */
+                                int raw_partial = raw_total - decoded_out;
+                                if (raw_partial > 0) {
+                                        memcpy(ws_raw_frame_buf[fd], buf + offset + decoded_out, (size_t)raw_partial);
+                                        ws_raw_frame_len[fd] = raw_partial;
                                 }
-                                len = (ssize_t)decoded;
+                                len = offset + decoded_out;
+                                if (len == 0) return;  /* only partial frame(s), nothing to process yet */
                         }
 
                         // If we don't have a newline, it means we are seeing a partial send. Buffer
@@ -557,6 +582,8 @@ void connections_manager(void)
                         player_connects(fd);
                         incoming_data_buffers[fd] = malloc_(sizeof(char) * INCOMING_DATA_BUFSIZE);
                         incoming_data_buffers_count[fd] = 0;
+                        ws_raw_frame_buf[fd] = malloc_(sizeof(char) * INCOMING_DATA_BUFSIZE);
+                        ws_raw_frame_len[fd] = 0;
                         admin_authorized[fd] = streq("127.0.0.1", inet_ntoa(client_addr.sin_addr));
                         recalculate_list_games = 1;
                 }

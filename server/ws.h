@@ -17,11 +17,9 @@ int     ws_detect_and_upgrade(int fd);
 /* Send data wrapped in a WebSocket text frame. */
 ssize_t ws_send(int fd, const char* data, int len);
 
-/* Decode all complete WebSocket frames in buf[0..*len-1] in-place,
- * replacing raw frame bytes with decoded payload bytes.
- * On return *len holds the total decoded payload bytes.
- * Returns:  1  at least one frame decoded successfully
- *           0  buffer holds an incomplete frame (partial raw bytes
- *              remain at the start of buf so the caller can save them)
- *          -1  fatal protocol error (close frame, bad length, etc.)  */
+/* Decode all complete WebSocket frames in buf[0..*len-1] in-place.
+ * On return: buf[0..retval-1] = decoded payload bytes (game messages);
+ *            buf[retval..*len-1] = raw partial frame bytes (if any).
+ * Returns:  N>=0  number of decoded payload bytes (0 = only partial frame)
+ *          -1     fatal protocol error (close frame, unsupported length)  */
 int     ws_decode_inplace(char* buf, int* len);
