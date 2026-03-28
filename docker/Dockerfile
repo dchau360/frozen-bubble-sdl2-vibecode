@@ -28,4 +28,4 @@ EXPOSE 1511
 # -q  don't register with frozen-bubble.org master (offline since ~2012)
 # -l  enable UDP broadcast for LAN auto-discovery
 # -z  no language preference
-CMD ["/usr/local/bin/fb-server", "-d", "-q", "-l", "-z", "-o", "CONNECT"]
+CMD ["/usr/local/bin/fb-server", "-d", "-q", "-l", "-z", "-o", "DEBUG"]
