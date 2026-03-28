@@ -254,8 +254,22 @@ bool NetworkClient::CreateGame() {
     std::string originalNick = playerNick;
     std::string tryNick = playerNick;
     int suffix = 2; // Start with suffix 2 for first retry
-    int maxRetries = 20;
 
+#ifdef __WASM_PORT__
+    // In WASM, SDL_Delay is a no-op and WebSocket responses arrive asynchronously
+    // (only between main-loop frames, never inside this synchronous function).
+    // Skip the retry loop entirely: send CREATE once and optimistically assume
+    // success. If the server rejects it (e.g. NICK_IN_USE) the error response
+    // will arrive via the WebSocket callback and the lobby will show the error.
+    SDL_Log("WASM CreateGame: sending CREATE %s", tryNick.c_str());
+    char cmd[128];
+    snprintf(cmd, sizeof(cmd), "CREATE %s", tryNick.c_str());
+    if (!SendCommand(cmd)) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "WASM CreateGame: SendCommand failed");
+        return false;
+    }
+#else
+    int maxRetries = 20;
     for (int retry = 0; retry < maxRetries; retry++) {
         char cmd[128];
         snprintf(cmd, sizeof(cmd), "CREATE %s", tryNick.c_str());
@@ -268,49 +282,47 @@ bool NetworkClient::CreateGame() {
             return false;
         }
 
-        // Wait a bit for server response (SendCommand already waits 100ms)
+        // Wait a bit for server response (SendCommand already waits 100ms in TCP path)
         SDL_Delay(50);
 
         // Check if we got NICK_IN_USE error
         if (lastErrorResponse == "NICK_IN_USE") {
             SDL_Log("Nickname '%s' is in use, trying with suffix %d", tryNick.c_str(), suffix);
-            // Generate new nickname with suffix
             char suffixStr[16];
             snprintf(suffixStr, sizeof(suffixStr), "%d", suffix);
             tryNick = originalNick.substr(0, std::min((size_t)9, originalNick.length())) + suffixStr;
             suffix++;
-            continue; // Retry with new nickname
+            continue;
         }
-
-        // No error or different error - assume success
-        SDL_Log("CREATE command successful with nickname '%s', setting state to IN_LOBBY", tryNick.c_str());
-        state = IN_LOBBY;
-
-        // Update playerNick and myNickname to the one that worked (for ID mapping)
-        playerNick = tryNick;
-        myNickname = tryNick;
-
-        // Set up currentGame structure
-        if (!currentGame) {
-            currentGame = new GameRoom();
-        }
-        currentGame->creator = playerNick;
-        currentGame->started = false;
-
-        // Add self as the first player
-        NetworkPlayer self;
-        self.nick = playerNick;
-        self.ready = false;
-        currentGame->players.clear();
-        currentGame->players.push_back(self);
-
-        SDL_Log("Created game, currentGame has %d players", (int)currentGame->players.size());
-
-        return true;
+        break; // No error — success
     }
+#endif // __WASM_PORT__
 
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create game after %d retries", maxRetries);
-    return false;
+    // Set up local game room state (optimistic for WASM; confirmed for native)
+    SDL_Log("CREATE sent with nickname '%s', setting state to IN_LOBBY", tryNick.c_str());
+    state = IN_LOBBY;
+
+    // Update playerNick and myNickname to the one that worked (for ID mapping)
+    playerNick = tryNick;
+    myNickname = tryNick;
+
+    // Set up currentGame structure
+    if (!currentGame) {
+        currentGame = new GameRoom();
+    }
+    currentGame->creator = playerNick;
+    currentGame->started = false;
+
+    // Add self as the first player
+    NetworkPlayer self;
+    self.nick = playerNick;
+    self.ready = false;
+    currentGame->players.clear();
+    currentGame->players.push_back(self);
+
+    SDL_Log("Created game, currentGame has %d players", (int)currentGame->players.size());
+
+    return true;
 }
 
 bool NetworkClient::JoinGame(const char* creator) {

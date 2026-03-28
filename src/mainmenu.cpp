@@ -1045,9 +1045,11 @@ void MainMenu::HandleInput(SDL_Event *e){
                     } else if (showingNetPanel && networkInLobby && networkInputMode == 6) {
                         // Create game confirmed
                         NetworkClient* netClient = NetworkClient::Instance();
-                        if (netClient->GetState() == CONNECTED) {
-                            netClient->CreateGame();
-                            AudioMixer::Instance()->PlaySFX("menu_selected");
+                        // Accept CONNECTED or IN_LOBBY — after returning from a game state is IN_LOBBY
+                        if (netClient->GetState() == CONNECTED || netClient->GetState() == IN_LOBBY) {
+                            if (netClient->CreateGame()) {
+                                AudioMixer::Instance()->PlaySFX("menu_selected");
+                            }
                         }
                         networkInputMode = 0; // Back to lobby
                         SDL_StopTextInput();
@@ -1198,6 +1200,14 @@ void MainMenu::HandleInput(SDL_Event *e){
                                     SDL_AndroidSendMessage(0x8001, 0); // show lobby ad
 #endif
                                 }
+                            } else {
+                                // SendNick failed — WebSocket is still connecting (WASM async).
+                                // Store the nickname and complete lobby entry in NetPanelRender()
+                                // once the WebSocket open callback fires and state becomes CONNECTED.
+                                SDL_Log("SendNick failed (state=%d), setting pendingLobbyConnect for async completion", netClient->GetState());
+                                snprintf(networkPreNick, sizeof(networkPreNick), "%s", nickname);
+                                pendingLobbyConnect = true;
+                                connectErrorMsg.clear();
                             }
                         } else {
                             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to connect to %s:%d", host, port);
@@ -1212,10 +1222,13 @@ void MainMenu::HandleInput(SDL_Event *e){
                 case SDLK_c:
                     if (showingNetPanel && networkInLobby && networkInputMode == 0) {
                         NetworkClient* netClient = NetworkClient::Instance();
-                        if (netClient->GetState() == CONNECTED) {
-                            // Open create game confirmation screen
-                            networkInputMode = 6;
-                            AudioMixer::Instance()->PlaySFX("menu_selected");
+                        // Accept CONNECTED or IN_LOBBY — after returning from a game state is IN_LOBBY
+                        if (netClient->GetState() == CONNECTED || netClient->GetState() == IN_LOBBY) {
+                            if (!netClient->GetCurrentGame()) {
+                                // Open create game confirmation screen
+                                networkInputMode = 6;
+                                AudioMixer::Instance()->PlaySFX("menu_selected");
+                            }
                         }
                     }
                     break;
@@ -1375,6 +1388,7 @@ void MainMenu::HandleInput(SDL_Event *e){
                         } else {
                             showingNetPanel = false;
                             networkInLobby = false;
+                            pendingLobbyConnect = false;
                             if (NetworkClient::Instance()->IsConnected()) {
                                 NetworkClient::Instance()->Disconnect();
                             }
@@ -1837,6 +1851,39 @@ void MainMenu::NetPanelRender() {
     if (!showingNetPanel) return;
 
     NetworkClient* netClient = NetworkClient::Instance();
+
+    // Auto-complete lobby entry once async WebSocket connection opens (WASM only).
+    // On the first Enter press the WebSocket is CONNECTING so SendNick fails; we set
+    // pendingLobbyConnect and come back here each frame until state becomes CONNECTED.
+    if (pendingLobbyConnect && netClient->GetState() == CONNECTED) {
+        SDL_Log("pendingLobbyConnect: WebSocket now CONNECTED, completing lobby entry");
+        pendingLobbyConnect = false;
+        char nickname[32];
+        if (networkPreNick[0] != '\0') {
+            snprintf(nickname, sizeof(nickname), "%s", networkPreNick);
+        } else {
+            const char* envUser = getenv("USER");
+            if (envUser && envUser[0] != '\0') snprintf(nickname, sizeof(nickname), "%s", envUser);
+            else snprintf(nickname, sizeof(nickname), "unnamed");
+        }
+        if (netClient->SendNick(nickname)) {
+            std::string geoLoc = NetworkClient::DetectGeoLocation();
+            float gLat = 0.0f, gLon = 0.0f;
+            if (sscanf(geoLoc.c_str(), "%f:%f", &gLat, &gLon) == 2) {
+                myGeoLat = gLat; myGeoLon = gLon; myGeoLocSet = true;
+            }
+            if (netClient->SendGeoLoc(geoLoc.c_str())) {
+                networkInLobby = true;
+                networkInputMode = 0;
+                networkGameStarting = false;
+                netClient->RequestList();
+                lastListRequest = SDL_GetTicks();
+#ifdef __ANDROID__
+                SDL_AndroidSendMessage(0x8001, 0);
+#endif
+            }
+        }
+    }
 
     // Update network client
     if (netClient->IsConnected()) {
@@ -2375,7 +2422,9 @@ void MainMenu::NetPanelRender() {
         snprintf(lineBuf, sizeof(lineBuf), "\nUP/DOWN  ENTER to select  R to refresh\nESC to cancel");
         renderLine(lineBuf, white, y);
 
-        if (!connectErrorMsg.empty()) {
+        if (pendingLobbyConnect) {
+            renderLine("\nConnecting...", yellow, y);
+        } else if (!connectErrorMsg.empty()) {
             snprintf(lineBuf, sizeof(lineBuf), "\n%s", connectErrorMsg.c_str());
             renderLine(lineBuf, red, y);
         }
@@ -2924,6 +2973,7 @@ void MainMenu::ReturnToNetLobby() {
     networkInLobby = true;
     networkInputMode = 0;
     networkGameStarting = false;
+    pendingLobbyConnect = false;
     SDL_StopTextInput();
 
     // Clear stale game list immediately so ESC-quitter can't see/join the in-progress game
