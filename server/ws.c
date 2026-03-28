@@ -115,15 +115,17 @@ static void base64_encode(const uint8_t* in, int n, char* out)
 
 int ws_detect_and_upgrade(int fd)
 {
-    /* Wait up to 300 ms for the client to send the first bytes.
+    /* Wait up to 50 ms for the client to send the first bytes.
      * Native TCP clients wait for the server greeting before sending anything,
-     * so a 300 ms window cleanly distinguishes them from browser WebSocket
-     * clients, which send the HTTP upgrade request immediately on connect. */
+     * so a 50 ms window cleanly distinguishes them from browser WebSocket
+     * clients, which send the HTTP upgrade request immediately on connect.
+     * 50 ms is intentionally short so the server greeting reaches native
+     * clients well within their SERVER_READY receive window. */
     fd_set rfds;
     struct timeval tv;
     FD_ZERO(&rfds);
     FD_SET(fd, &rfds);
-    tv.tv_sec = 0; tv.tv_usec = 300000;
+    tv.tv_sec = 0; tv.tv_usec = 50000;
     if (select(fd+1, &rfds, NULL, NULL, &tv) <= 0)
         return 0;   /* timeout — plain TCP client */
 
