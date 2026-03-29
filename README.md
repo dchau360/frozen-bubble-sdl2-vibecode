@@ -188,14 +188,15 @@ Or right-click the app → **Open** → **Open** to bypass Gatekeeper once.
 
 ## New in v2.4.8
 
-- **WebAssembly: swap creators fixed** — after a game ends, the server now moves the player's connection back to normal lobby mode (was left in in-game prio mode), preventing the 5-second prio gracetime and duplicate prio entry on the next game
-- **WebAssembly: round 2+ sync fixed** — browser client now waits for all 40 sync messages to queue up before starting each new round, same as the round 1 fix in v2.4.7
+- **WebAssembly: swap creators fixed** — after a game ends, the server now correctly moves the player's connection back to normal lobby mode (previously left in in-game priority mode), preventing the 5-second in-game timeout and stale duplicate entries when starting a new game with swapped roles
+- **WebAssembly: round 2+ sync fixed** — browser client waits for all level-sync messages to arrive before starting each subsequent round (same mechanism as the round 1 fix in v2.4.7); prevents the ~30-second disconnect at the start of round 2
+- **Server: version logged at startup** — fb-server now prints its version and protocol to the log on startup, making it easier to confirm which binary is running
 
 ---
 
 ## New in v2.4.7
 
-- **WebAssembly: game join fixed** — browser client now waits for all 40 level-sync messages to queue up before entering the game, preventing the immediate disconnect when macOS hosts and web client joins
+- **WebAssembly: game start fixed** — browser client now waits for all 40 level-sync messages to queue up before entering the game loop, preventing the immediate disconnect when a native client hosts and the web client joins
 
 ---
 
