@@ -157,6 +157,7 @@ private:
     bool showingNetSetupPanel = false; // For chain reaction prompt before network lobby
     bool networkInLobby = false;
     bool networkGameStarting = false; // Track if game start has been initiated
+    bool networkGameStartDelay = false; // WASM joiner: one-frame delay before SetupNewGame
     bool serverHosting = false;
     int serverPid = -1;
     char networkHost[256] = "127.0.0.1";

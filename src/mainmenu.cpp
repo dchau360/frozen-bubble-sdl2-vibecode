@@ -1199,6 +1199,7 @@ void MainMenu::HandleInput(SDL_Event *e){
                                     networkInLobby = true;
                                     networkInputMode = 0;  // Switch to lobby mode so C/J/T/U keys work
                                     networkGameStarting = false;
+                                    networkGameStartDelay = false;
                                     netClient->RequestList();  // Immediate list on lobby entry
                                     lastListRequest = SDL_GetTicks();
 #ifdef __ANDROID__
@@ -1881,6 +1882,7 @@ void MainMenu::NetPanelRender() {
                 networkInLobby = true;
                 networkInputMode = 0;
                 networkGameStarting = false;
+                networkGameStartDelay = false;
                 netClient->RequestList();
                 lastListRequest = SDL_GetTicks();
 #ifdef __ANDROID__
@@ -1913,6 +1915,16 @@ void MainMenu::NetPanelRender() {
 
         // Check if game is ready to start (state transitioned to IN_GAME)
         if (!networkGameStarting && netClient->GetState() == IN_GAME) {
+#ifdef __WASM_PORT__
+            // WASM joiner: WaitForBubble cannot yield mid-frame (no Asyncify).
+            // Defer one animation frame so WebSocket callbacks can queue all
+            // sync messages (38 bubbles + N + T) before SyncNetworkLevel runs.
+            if (!netClient->IsLeader() && !networkGameStartDelay) {
+                networkGameStartDelay = true;
+                return;
+            }
+            networkGameStartDelay = false;
+#endif
             SDL_Log("Game starting - transitioning to network game");
             networkGameStarting = true;
 
@@ -3007,6 +3019,7 @@ void MainMenu::ReturnToNetLobby() {
     networkInLobby = true;
     networkInputMode = 0;
     networkGameStarting = false;
+    networkGameStartDelay = false;
     pendingLobbyConnect = false;
     SDL_StopTextInput();
 
