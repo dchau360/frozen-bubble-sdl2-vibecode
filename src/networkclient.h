@@ -126,6 +126,8 @@ public:
     void SetConnected() { state = CONNECTED; }
     // True while waiting for async CREATE OK/rejection from server (WASM only)
     bool IsPendingCreate() const { return pendingCreate; }
+    // True while waiting for async JOIN OK/rejection from server (WASM only)
+    bool IsPendingJoin() const { return pendingJoin; }
 
     // Send game options to other players (host only)
     bool SendOptions(bool chainReaction, bool continueWhenLeave, bool singleTarget, int victoriesLimit, const int playerColors[5], const bool noCompress[5], const bool aimGuide[5]);
@@ -202,6 +204,13 @@ private:
     std::string pendingCreateOrigNick;
     std::string pendingCreateNick;
     int pendingCreateSuffix = 2;
+
+    // WASM async JOIN state
+    bool pendingJoin = false;
+    std::string pendingJoinCreator;
+    std::string pendingJoinOrigNick;
+    std::string pendingJoinNick;
+    int pendingJoinSuffix = 2;
 
     static NetworkClient* ptrInstance;
 };

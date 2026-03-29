@@ -336,6 +336,27 @@ bool NetworkClient::JoinGame(const char* creator) {
 
     std::string originalNick = playerNick;
     std::string tryNick = playerNick;
+
+#ifdef __WASM_PORT__
+    // In WASM, WebSocket responses arrive asynchronously between frames.
+    // SDL_Delay does NOT pump the JS event loop, so we cannot poll for server
+    // responses inline. Send JOIN and record pending state; HandleServerResponse()
+    // will confirm or reject and set up currentGame/state once the OK arrives.
+    SDL_Log("WASM JoinGame: sending JOIN %s %s", creator, tryNick.c_str());
+    char cmd[128];
+    snprintf(cmd, sizeof(cmd), "JOIN %s %s", creator, tryNick.c_str());
+    if (!SendCommand(cmd)) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "WASM JoinGame: SendCommand failed");
+        return false;
+    }
+    pendingJoin = true;
+    pendingJoinCreator = std::string(creator);
+    pendingJoinOrigNick = originalNick;
+    pendingJoinNick = tryNick;
+    pendingJoinSuffix = 2;
+    return true;  // state/currentGame set later when server sends OK
+#else
+
     int suffix = 2;
     int maxRetries = 20;
 
@@ -408,6 +429,7 @@ bool NetworkClient::JoinGame(const char* creator) {
 
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to join game after %d retries", maxRetries);
     return false;
+#endif // __WASM_PORT__
 }
 
 bool NetworkClient::StartGame() {
@@ -891,6 +913,37 @@ void NetworkClient::HandleServerResponse(const std::string& response) {
             currentGame->players.clear();
             currentGame->players.push_back(self);
             pendingCreate = false;
+        } else if (pendingJoin && response.find("PART") == std::string::npos) {
+            SDL_Log("JOIN confirmed by server (pendingJoin=true): joined '%s' as '%s'", pendingJoinCreator.c_str(), pendingJoinNick.c_str());
+            state = IN_LOBBY;
+            playerNick = pendingJoinNick;
+            myNickname = pendingJoinNick;
+            // Set up currentGame from the cached gameList (populated by LIST responses)
+            for (const auto& game : gameList) {
+                if (game.creator == pendingJoinCreator) {
+                    if (!currentGame) currentGame = new GameRoom();
+                    *currentGame = game;
+                    break;
+                }
+            }
+            if (!currentGame) {
+                // Game not in list yet — create a minimal placeholder
+                currentGame = new GameRoom();
+                currentGame->creator = pendingJoinCreator;
+                currentGame->started = false;
+            }
+            // Add ourselves — server sends JOINED to existing players only, not to the joiner
+            NetworkPlayer self;
+            self.nick = pendingJoinNick;
+            self.ready = false;
+            // Avoid double-adding if already present from gameList sync
+            bool alreadyIn = false;
+            for (const auto& p : currentGame->players) {
+                if (p.nick == pendingJoinNick) { alreadyIn = true; break; }
+            }
+            if (!alreadyIn) currentGame->players.push_back(self);
+            SDL_Log("Joined game '%s', currentGame has %d players", pendingJoinCreator.c_str(), (int)currentGame->players.size());
+            pendingJoin = false;
         }
 #endif
     } else if (response.find("PONG") != std::string::npos) {
@@ -913,11 +966,30 @@ void NetworkClient::HandleServerResponse(const std::string& response) {
         } else if (pendingCreate) {
             SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "CREATE failed: all nick variants in use");
             pendingCreate = false;
+        } else if (pendingJoin && pendingJoinSuffix <= 20) {
+            char suffixBuf[8];
+            snprintf(suffixBuf, sizeof(suffixBuf), "%d", pendingJoinSuffix);
+            std::string retryNick = pendingJoinOrigNick.substr(0, std::min((size_t)9, pendingJoinOrigNick.length())) + suffixBuf;
+            pendingJoinNick = retryNick;
+            pendingJoinSuffix++;
+            char cmd[128];
+            snprintf(cmd, sizeof(cmd), "JOIN %s %s", pendingJoinCreator.c_str(), retryNick.c_str());
+            SDL_Log("JOIN NICK_IN_USE, retrying with: %s", retryNick.c_str());
+            SendCommand(cmd);
+        } else if (pendingJoin) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "JOIN failed: all nick variants in use");
+            pendingJoin = false;
         }
 #endif
     } else if (response.find("NO_SUCH_GAME") != std::string::npos) {
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "NO_SUCH_GAME error received");
         lastErrorResponse = "NO_SUCH_GAME";
+#ifdef __WASM_PORT__
+        if (pendingJoin) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "JOIN failed: NO_SUCH_GAME for '%s'", pendingJoinCreator.c_str());
+            pendingJoin = false;
+        }
+#endif
     } else if (response.find("ALREADY_IN_GAME") != std::string::npos) {
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "ALREADY_IN_GAME error received");
         lastErrorResponse = "ALREADY_IN_GAME";
@@ -930,6 +1002,14 @@ void NetworkClient::HandleServerResponse(const std::string& response) {
             snprintf(cmd, sizeof(cmd), "CREATE %s", pendingCreateNick.c_str());
             SendCommand(cmd);
             // pendingCreate stays true, waiting for the new response
+        } else if (pendingJoin) {
+            // Already in a game — send PART to clear stale state, then retry JOIN
+            SDL_Log("JOIN rejected (ALREADY_IN_GAME), sending PART and retrying");
+            SendCommand("PART");
+            char cmd[128];
+            snprintf(cmd, sizeof(cmd), "JOIN %s %s", pendingJoinCreator.c_str(), pendingJoinNick.c_str());
+            SendCommand(cmd);
+            // pendingJoin stays true, waiting for the new response
         }
 #endif
     }
