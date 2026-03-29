@@ -15,7 +15,7 @@ A C++ / SDL2 port of the classic [Frozen Bubble 2](http://www.frozen-bubble.org/
 Classic Frozen Bubble gameplay — 100 levels, scoring, chain reactions.
 
 ### 2-Player Local
-Two players on the same keyboard:
+Two players on the same keyboard or controllers:
 - Player 1: Arrow keys + Up to fire
 - Player 2: C/X/V + D to fire
 
@@ -231,7 +231,7 @@ Or right-click the app → **Open** → **Open** to bypass Gatekeeper once.
 - **Per-player lobby settings grid** — Max colors, Rows collapse, and Aim guide shown as a P1–P5 column grid; host navigates with arrow keys and Enter
 - **Aim guide** — trajectory preview toggle per player
 - **Row compression toggle** per player — disable rows collapsing for specific players
-- **Local multiplayer** — 2–5 players on controllers
+- **Local multiplayer** — 2 players on controllers (3–5 player local is WIP)
 
 ---
 
@@ -257,7 +257,8 @@ Features ported from the original Frozen Bubble 2 Perl source:
 | Multiplayer training mode | ✅ |
 | Geolocation dots on world map lobby | ✅ |
 | Aim guide (trajectory preview) | ✅ (added beyond original) |
-| Local multiplayer (2–5 players, controllers) | ✅ |
+| Local multiplayer (2 players, controllers) | ✅ |
+| Local multiplayer (3–5 players, controllers) | ⏳ (WIP) |
 | Single-player malus targeting logic | ⏳ (placeholder) |
 | macOS, Windows, Android TV, WebAssembly | ✅ (original was Linux-only) |
 
