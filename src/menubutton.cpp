@@ -49,7 +49,7 @@ MenuButton::MenuButton(uint32_t x, uint32_t y, const std::string &name, const SD
         {
             pathBase = ASSET("/gfx/menu/anims/gfx-l") + std::to_string(i + 1) + "_";
             int max = sheetlen;
-            if(i == 3) max = 1;
+            if(i == 2) max = 1;  // gfx-l3 is a single static frame (highest quality)
             for (int j = 0; j < max; j++)
             {
                 sheetLen++;
@@ -138,13 +138,16 @@ void MenuButton::Render(const SDL_Renderer *renderer)
             }
         }
         if(buttonName == "graphics" && gfxLvl == 3) fixedFrame = 60;
-        SDL_SetTextureAlphaMod(icons[fixedFrame], 255);
+        if(fixedFrame < (int)icons.size() && icons[fixedFrame])
+            SDL_SetTextureAlphaMod(icons[fixedFrame], 255);
     }
     else {
-        SDL_SetTextureAlphaMod(icons[fixedFrame], 100);
+        if(fixedFrame < (int)icons.size() && icons[fixedFrame])
+            SDL_SetTextureAlphaMod(icons[fixedFrame], 100);
     }
     SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), isActive?backgroundActive:background, nullptr, &rect);
-    SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), icons[fixedFrame], nullptr, &icon_rect);
+    if(fixedFrame < (int)icons.size() && icons[fixedFrame])
+        SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), icons[fixedFrame], nullptr, &icon_rect);
 }
 
 void MenuButton::Pressed(void *parent)
