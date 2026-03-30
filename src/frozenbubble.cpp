@@ -259,14 +259,28 @@ void FrozenBubble::RunOneFrame()
     deltaScale = (elapsed / (1000.0f / 60.0f)) * 3.0f;
     if (deltaScale < 0.1f) deltaScale = 0.1f;  // guard against stalled/zero-elapsed frames
     if (deltaScale > 6.0f) deltaScale = 6.0f;  // guard against tab-hidden resume spikes
+#elif defined(__ANDROID__)
+    // Android TV / Fire TV: 1.25x adaptive — adaptive so minimize/resume frame
+    // rate throttling self-corrects rather than leaving the game permanently slow.
+    deltaScale = (elapsed / (1000.0f / 60.0f)) * 1.25f;
+    if (deltaScale < 0.5f) deltaScale = 0.5f;
+    if (deltaScale > 6.0f) deltaScale = 6.0f;
 #else
-    // Native: 1.25x the original default speed
-    deltaScale = 1.25f;
+    // Desktop native (macOS, Linux, Windows): 2.0x adaptive.
+    deltaScale = (elapsed / (1000.0f / 60.0f)) * 2.0f;
+    if (deltaScale < 0.5f) deltaScale = 0.5f;
+    if (deltaScale > 6.0f) deltaScale = 6.0f;
 #endif
 
     // handle input
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
+        if (e.type == SDL_APP_DIDENTERFOREGROUND) {
+            // Reset frame timer so the first frame after resume doesn't have a
+            // huge elapsed, which would make deltaScale spike on native adaptive builds.
+            frameTicks = SDL_GetTicks();
+            frameLastTick = frameTicks;
+        }
         if (e.type == SDL_QUIT || e.type == SDL_APP_TERMINATING ||
             (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE) ||
             (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)) {

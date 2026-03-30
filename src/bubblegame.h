@@ -55,6 +55,12 @@
 
 #define BUBBLE_STYLES 8
 #define BUBBLE_STICKFC 7
+// Original Perl source values (bin/frozen-bubble line 94-97):
+//   $BUBBLE_SPEED      = 10   → ported as 10/2=5 px/frame at 60fps = 300 px/sec
+//   $MALUS_BUBBLE_SPEED = 30  → ported as 30/2=15 px/frame (unused; see MALUS_SPEED in bubblegame.cpp)
+//   $LAUNCHER_SPEED    = 0.015 rad/frame
+// Current values are the original port defaults; actual runtime speed is multiplied
+// by FrozenBubble::deltaScale (native ~1.25x, browser 3.0x normalized).
 #define BUBBLE_SPEED 10 / 2
 #define MALUS_BUBBLE_SPEED 30 / 2
 #define LAUNCHER_SPEED 0.015 * 0.6

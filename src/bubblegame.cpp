@@ -2066,7 +2066,9 @@ void BubbleGame::UpdateSingleBubbles(int /*id*/) {
     singleBubbles.erase(std::remove_if(singleBubbles.begin(), singleBubbles.end(), [](const SingleBubble &s){ return s.shouldClear; }), singleBubbles.end());
 
     // Update malus bubbles (they rise upward to stick position)
-    const float MALUS_SPEED = 2.0f;  // Speed of upward movement
+    // Original port used 2.0 px/frame; increased 25% to 2.5 for better feel.
+    // Multiplied by deltaScale so speed is frame-rate-independent.
+    const float MALUS_SPEED = 2.5f * FrozenBubble::Instance()->deltaScale;
     for (auto &malus : malusBubbles) {
         if (malus.shouldClear) continue;
 
@@ -4068,7 +4070,16 @@ void BubbleGame::HandleInput(SDL_Event *e) {
                         SetSendMalusToOne(target);
                     }
                     break;
+                case SDLK_SPACE:
+                    // Fire TV remote A button (mapped to SDLK_SPACE) should also continue
+                    // the round when the game is finished — same as SDLK_RETURN below.
+                    // During active play SDLK_SPACE is the fire key and is handled elsewhere,
+                    // so only fall through here when gameFinish is set.
+                    if (gameFinish && singleBubbles.size() == 0)
+                        goto handle_return;
+                    break;
                 case SDLK_RETURN:
+                handle_return:
                     // Chat: during active network game, RETURN enters/sends chat
                     if (currentSettings.networkGame && !gameFinish) {
                         if (chattingMode) {
