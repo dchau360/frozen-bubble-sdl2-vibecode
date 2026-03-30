@@ -623,6 +623,19 @@ int process_msg(int fd, char* msg)
                                         free(nick[fd]);
                                 }
                                 nick[fd] = strdup(args);
+                                // Evict any stale open_players entry with the same nick (ghost player fix).
+                                // When a player reconnects after a silent TCP drop, the old fd stays in
+                                // open_players until gracetime fires, causing duplicate entries in LIST.
+                                {
+                                        GList *iter = open_players;
+                                        while (iter) {
+                                                int other_fd = GPOINTER_TO_INT(iter->data);
+                                                iter = iter->next;
+                                                if (other_fd != fd && nick[other_fd] != NULL && streq(nick[other_fd], args)) {
+                                                        conn_terminated(other_fd, "replaced by new connection with same nick");
+                                                }
+                                        }
+                                }
                                 calculate_list_games();
                                 send_ok(fd, msg_orig);
                         }

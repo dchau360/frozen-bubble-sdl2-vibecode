@@ -1203,7 +1203,11 @@ void MainMenu::HandleInput(SDL_Event *e){
                             } else {
                                 const char* envUser = getenv("USER");
                                 if (envUser && envUser[0] != '\0') snprintf(nickname, sizeof(nickname), "%s", envUser);
+#ifdef __ANDROID__
+                                else snprintf(nickname, sizeof(nickname), "android_user");
+#else
                                 else snprintf(nickname, sizeof(nickname), "unnamed");
+#endif
                             }
                             if (netClient->SendNick(nickname)) {
                                 SDL_Delay(100);
@@ -1891,7 +1895,11 @@ void MainMenu::NetPanelRender() {
         } else {
             const char* envUser = getenv("USER");
             if (envUser && envUser[0] != '\0') snprintf(nickname, sizeof(nickname), "%s", envUser);
+#ifdef __ANDROID__
+            else snprintf(nickname, sizeof(nickname), "android_user");
+#else
             else snprintf(nickname, sizeof(nickname), "unnamed");
+#endif
         }
         if (netClient->SendNick(nickname)) {
             std::string geoLoc = NetworkClient::DetectGeoLocation();
@@ -2398,7 +2406,11 @@ void MainMenu::NetPanelRender() {
         {
             int lanMenuMax = 2 + (int)discoveredServers.size(); // 0=Host, 1..n=servers, n+1=SetName
             bool sel = (lanMenuIndex == lanMenuMax - 1);
+            #ifdef __ANDROID__
+            const char* curNick = networkPreNick[0] != '\0' ? networkPreNick : (getenv("USER") ? getenv("USER") : "android_user");
+#else
             const char* curNick = networkPreNick[0] != '\0' ? networkPreNick : (getenv("USER") ? getenv("USER") : "unnamed");
+#endif
             snprintf(lineBuf, sizeof(lineBuf), sel ? "[ Set Name: %-20s ]" : "  Set Name: %-20s  ", curNick);
             renderLine(lineBuf, sel ? yellow : white, y);
         }
@@ -2476,7 +2488,11 @@ void MainMenu::NetPanelRender() {
         {
             int netMenuMax = 2 + (int)publicServers.size(); // 0=Manual, 1..n=servers, n+1=SetName
             bool sel = (netMenuIndex == netMenuMax - 1);
+            #ifdef __ANDROID__
+            const char* curNick = networkPreNick[0] != '\0' ? networkPreNick : (getenv("USER") ? getenv("USER") : "android_user");
+#else
             const char* curNick = networkPreNick[0] != '\0' ? networkPreNick : (getenv("USER") ? getenv("USER") : "unnamed");
+#endif
             snprintf(lineBuf, sizeof(lineBuf), sel ? "[ Set Name: %-20s ]" : "  Set Name: %-20s  ", curNick);
             renderLine(lineBuf, sel ? yellow : white, y);
         }
