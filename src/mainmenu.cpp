@@ -1842,7 +1842,7 @@ void MainMenu::KeysPanelRender() {
     char lineBuf[256];
     int y = (480/2) - 120;
 
-    snprintf(lineBuf, sizeof(lineBuf), "Key config  Player %d/4", keyConfigPlayer);
+    snprintf(lineBuf, sizeof(lineBuf), "Key config  Player %d/4  (" APP_VERSION ")", keyConfigPlayer);
     renderLine(lineBuf, white, y);
     renderLine("LEFT/RIGHT to switch player", white, y);
     y += 6;  // small gap before key rows
