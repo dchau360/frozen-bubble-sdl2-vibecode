@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.4.15
+
+- **Sound toggle in Settings** — Settings → Keys menu now has a Sound ON/OFF toggle; disables all music and SFX immediately and persists across restarts
+
 ## v2.4.14
 
 - **Xbox controller: continue round fixed** — pressing A on an Xbox controller after a round ends now correctly continues to the next round in local multiplayer

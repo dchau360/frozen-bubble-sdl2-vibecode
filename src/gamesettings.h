@@ -74,6 +74,8 @@ public:
     bool canPlayMusic() { return playMusic; }
     bool canPlaySFX() { return playSfx; }
     bool useClassicAudio() { return classicSound; }
+    bool soundEnabled() { return playMusic && playSfx; }
+    void setSoundEnabled(bool on);
     bool colorBlind() { return colorblindBubbles; }
 
     PlayerKeys player1Keys, player2Keys, player3Keys, player4Keys, player5Keys;

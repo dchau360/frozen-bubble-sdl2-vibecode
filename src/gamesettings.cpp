@@ -275,6 +275,14 @@ void GameSettings::SaveSettings()
     SDL_Log("Settings saved to %s", setPath);
 }
 
+void GameSettings::setSoundEnabled(bool on) {
+    playMusic = on;
+    playSfx = on;
+    iniparser_set(optDict, "Sound:EnableMusic", on ? "true" : "false");
+    iniparser_set(optDict, "Sound:EnableSFX", on ? "true" : "false");
+    SaveSettings();
+}
+
 void GameSettings::SetValue(const char* option, const char* value)
 {
     //update runtime options

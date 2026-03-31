@@ -503,11 +503,11 @@ void MainMenu::HandleInput(SDL_Event *e){
                 } else if (!awaitKp) {
                     // UP/DOWN: navigate keys within current player
                     if (e->key.keysym.sym == SDLK_UP) {
-                        keyConfigIndex = (keyConfigIndex == 0) ? 5 : keyConfigIndex - 1;
+                        keyConfigIndex = (keyConfigIndex == 0) ? 6 : keyConfigIndex - 1;
                         AudioMixer::Instance()->PlaySFX("menu_change");
                         break;
                     } else if (e->key.keysym.sym == SDLK_DOWN) {
-                        keyConfigIndex = (keyConfigIndex == 5) ? 0 : keyConfigIndex + 1;
+                        keyConfigIndex = (keyConfigIndex == 6) ? 0 : keyConfigIndex + 1;
                         AudioMixer::Instance()->PlaySFX("menu_change");
                         break;
                     } else if (e->key.keysym.sym == SDLK_LEFT) {
@@ -556,6 +556,20 @@ void MainMenu::HandleInput(SDL_Event *e){
                             keys.center = (SDL_Scancode)(CTRL_SC_BASE + slot * 20 + SDL_CONTROLLER_BUTTON_DPAD_DOWN);
                             gs->SaveKeys();
                             AudioMixer::Instance()->PlaySFX("typewriter");
+                        } else if (keyConfigIndex == 5) {
+                            // Game Speed row — adjusted via LEFT/RIGHT, ENTER does nothing
+                        } else if (keyConfigIndex == 6) {
+                            // Toggle sound on/off
+                            GameSettings* gs = GameSettings::Instance();
+                            bool nowOn = !gs->soundEnabled();
+                            gs->setSoundEnabled(nowOn);
+                            if (nowOn) {
+                                AudioMixer::Instance()->MuteAll(true);
+                                AudioMixer::Instance()->PlayMusic("intro");
+                                AudioMixer::Instance()->PlaySFX("typewriter");
+                            } else {
+                                AudioMixer::Instance()->MuteAll(false);
+                            }
                         } else {
                             // Wait for key press
                             AudioMixer::Instance()->PlaySFX("menu_selected");
@@ -1806,8 +1820,6 @@ void MainMenu::KeysPanelRender() {
 
     SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), voidPanelBG, nullptr, &voidPanelRct);
 
-    char keyText[1024];
-
     GameSettings* gs = GameSettings::Instance();
     PlayerKeys* allKeys[5] = {
         &gs->player1Keys, &gs->player2Keys, &gs->player3Keys,
@@ -1815,34 +1827,76 @@ void MainMenu::KeysPanelRender() {
     };
     PlayerKeys& pk = *allKeys[keyConfigPlayer - 1];
 
-    const char* indicator = awaitKp ? " <--" : " >";
+    SDL_Color white  = {255, 255, 255, 255};
+    SDL_Color yellow = {255, 220, 50, 255};
+    SDL_Color black  = {0, 0, 0, 255};
 
-    float spd = GameSettings::Instance()->speedMultiplier;
-    snprintf(keyText, sizeof(keyText),
-        "Key config  Player %d/4\n"
-        "LEFT/RIGHT to switch player\n\n"
-        "%sturn left?   %s\n"
-        "%sturn right?  %s\n"
-        "%sfire?        %s\n"
-        "%scenter?      %s\n\n"
-        "%sReset ctrl defaults\n\n"
-        "%sGame Speed: %.1f  (L/R adjust)\n\n"
-        "%s\n"
-        "UP/DOWN select, ENTER change\n"
-        "ESC when done",
-        keyConfigPlayer,
-        keyConfigIndex == 0 ? indicator : "  ", ControllerScancodeName(pk.left).c_str(),
-        keyConfigIndex == 1 ? indicator : "  ", ControllerScancodeName(pk.right).c_str(),
-        keyConfigIndex == 2 ? indicator : "  ", ControllerScancodeName(pk.fire).c_str(),
-        keyConfigIndex == 3 ? indicator : "  ", ControllerScancodeName(pk.center).c_str(),
-        keyConfigIndex == 4 ? indicator : "  ",
-        keyConfigIndex == 5 ? indicator : "  ", spd,
-        awaitKp ? "Press button or key..." : "");
+    auto renderLine = [&](const char* txt, SDL_Color fg, int& y) {
+        panelText.UpdateColor(fg, black);
+        panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), txt, 0);
+        panelText.UpdatePosition({(640/2) - (panelText.Coords()->w / 2), y});
+        SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+        y += panelText.Coords()->h;
+    };
 
-    panelText.UpdateText(const_cast<SDL_Renderer *>(renderer), keyText, 0);
-    panelText.UpdatePosition({(640/2) - (panelText.Coords()->w / 2), (480/2) - 120});
-    SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), voidPanelBG, nullptr, &voidPanelRct);
-    SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+    char lineBuf[256];
+    int y = (480/2) - 120;
+
+    snprintf(lineBuf, sizeof(lineBuf), "Key config  Player %d/4", keyConfigPlayer);
+    renderLine(lineBuf, white, y);
+    renderLine("LEFT/RIGHT to switch player", white, y);
+    y += 6;  // small gap before key rows
+
+    // Rows 0-3: key bindings
+    struct { int idx; const char* label; std::string val; } rows[4] = {
+        {0, "turn left?  ", ControllerScancodeName(pk.left)},
+        {1, "turn right? ", ControllerScancodeName(pk.right)},
+        {2, "fire?       ", ControllerScancodeName(pk.fire)},
+        {3, "center?     ", ControllerScancodeName(pk.center)},
+    };
+    for (auto& row : rows) {
+        bool sel = (keyConfigIndex == row.idx);
+        if (sel && awaitKp)
+            snprintf(lineBuf, sizeof(lineBuf), "[ %s<-- ]", row.label);
+        else if (sel)
+            snprintf(lineBuf, sizeof(lineBuf), "[ %s%s ]", row.label, row.val.c_str());
+        else
+            snprintf(lineBuf, sizeof(lineBuf), "  %s%s  ", row.label, row.val.c_str());
+        renderLine(lineBuf, sel ? yellow : white, y);
+    }
+
+    y += 6;
+
+    // Row 4: Reset ctrl defaults
+    bool resetSel = (keyConfigIndex == 4);
+    renderLine(resetSel ? "[ Reset ctrl defaults ]" : "  Reset ctrl defaults  ", resetSel ? yellow : white, y);
+
+    y += 6;
+
+    // Row 5: Game Speed
+    float spd = gs->speedMultiplier;
+    bool spdSel = (keyConfigIndex == 5);
+    snprintf(lineBuf, sizeof(lineBuf),
+        spdSel ? "[ Game Speed: %.1f  (L/R adjust) ]" : "  Game Speed: %.1f  (L/R adjust)  ", spd);
+    renderLine(lineBuf, spdSel ? yellow : white, y);
+
+    y += 6;
+
+    // Row 6: Sound toggle
+    bool sndSel = (keyConfigIndex == 6);
+    const char* sndState = gs->soundEnabled() ? "ON" : "OFF";
+    snprintf(lineBuf, sizeof(lineBuf), sndSel ? "[ Sound: %s ]" : "  Sound: %s  ", sndState);
+    renderLine(lineBuf, sndSel ? yellow : white, y);
+
+    y += 6;
+
+    if (awaitKp)
+        renderLine("Press button or key...", yellow, y);
+    else
+        y += panelText.Coords()->h;  // keep spacing consistent
+
+    renderLine("UP/DOWN select, ENTER change", white, y);
+    renderLine("ESC when done", white, y);
 }
 
 void MainMenu::NetSetupPanelRender() {
