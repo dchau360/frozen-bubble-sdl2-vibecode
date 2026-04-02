@@ -1156,6 +1156,16 @@ void MainMenu::HandleInput(SDL_Event *e){
                         networkInputMode = networkPreNickReturnMode;
                         SDL_StopTextInput();
                         AudioMixer::Instance()->PlaySFX("menu_selected");
+                        // Save the nick immediately so it persists even if user doesn't connect
+                        if (networkPreNick[0] != '\0') {
+#ifdef __WASM_PORT__
+                            EM_ASM({ localStorage.setItem('fb_nickname', UTF8ToString($0)); }, networkPreNick);
+#else
+                            GameSettings* gsn = GameSettings::Instance();
+                            snprintf(gsn->savedNickname, sizeof(gsn->savedNickname), "%s", networkPreNick);
+                            gsn->SaveKeys();
+#endif
+                        }
                         break;
                     } else if (showingNetPanel && !networkInLobby &&
                                (networkInputMode == 8 || networkInputMode == 9)) {
@@ -1200,6 +1210,7 @@ void MainMenu::HandleInput(SDL_Event *e){
                             int serverIdx = lanMenuIndex - 1;
                             if (serverIdx >= (int)discoveredServers.size()) {
                                 // "Set Name" selected (last item)
+                                networkPreNick[0] = '\0';
                                 networkPreNickReturnMode = 7;
                                 networkInputMode = 11;
                                 SDL_StopTextInput();
@@ -1224,6 +1235,7 @@ void MainMenu::HandleInput(SDL_Event *e){
                             int serverIdx = netMenuIndex - 1;
                             if (serverIdx >= (int)publicServers.size()) {
                                 // "Set Name" selected (last item)
+                                networkPreNick[0] = '\0';
                                 networkPreNickReturnMode = 10;
                                 networkInputMode = 11;
                                 SDL_StopTextInput();
@@ -1251,13 +1263,16 @@ void MainMenu::HandleInput(SDL_Event *e){
 #endif
                             }
                             if (netClient->SendNick(nickname)) {
+                                // Only save if nick was explicitly set (not auto-filled from env)
+                                if (networkPreNick[0] != '\0') {
 #ifdef __WASM_PORT__
-                                EM_ASM({ localStorage.setItem('fb_nickname', UTF8ToString($0)); }, nickname);
+                                    EM_ASM({ localStorage.setItem('fb_nickname', UTF8ToString($0)); }, nickname);
 #else
-                                GameSettings* gsn = GameSettings::Instance();
-                                snprintf(gsn->savedNickname, sizeof(gsn->savedNickname), "%s", nickname);
-                                gsn->SaveKeys();
+                                    GameSettings* gsn = GameSettings::Instance();
+                                    snprintf(gsn->savedNickname, sizeof(gsn->savedNickname), "%s", nickname);
+                                    gsn->SaveKeys();
 #endif
+                                }
                                 SDL_Delay(100);
                                 std::string geoLoc = NetworkClient::DetectGeoLocation();
                                 // Parse for own spot rendering
@@ -2425,7 +2440,7 @@ void MainMenu::NetPanelRender() {
         // Show available players or game info below
         char playersText[256];
         if (currentGame) {
-            // Build comma-separated player list
+            // Build comma-separated player list for current game room
             std::string playerNames;
             for (size_t i = 0; i < currentGame->players.size(); i++) {
                 if (i > 0) playerNames += ", ";
@@ -2433,13 +2448,56 @@ void MainMenu::NetPanelRender() {
             }
             snprintf(playersText, sizeof(playersText), "Players (%d): %s",
                 (int)currentGame->players.size(), playerNames.c_str());
+            panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), playersText, 0);
+            panelText.UpdatePosition({statusX, statusY + 16});
+            SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
         } else {
+            // Show lobby player list — header line then names, up to 3 per line
             std::vector<NetworkPlayer> openPlayers = netClient->GetOpenPlayers();
-            snprintf(playersText, sizeof(playersText), "Available Players: %d", (int)openPlayers.size());
+            int total = (int)openPlayers.size();
+            snprintf(playersText, sizeof(playersText), "Online (%d):", total);
+            panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), playersText, 0);
+            panelText.UpdatePosition({statusX, statusY + 16});
+            SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+
+            // Build name list, up to 9 names (3 lines × 3), then "+N more"
+            const int maxShown = 9;
+            int lineY = statusY + 32;
+            int shown = 0;
+            std::string lineBuf;
+            int lineCount = 0;
+            for (int pi = 0; pi < total && shown < maxShown; pi++) {
+                const std::string& nick = openPlayers[pi].nick;
+                if (nick == netClient->GetPlayerNick()) continue; // skip self
+                if (!lineBuf.empty()) lineBuf += "  ";
+                lineBuf += nick;
+                shown++;
+                // Flush line every 3 names
+                if (shown % 3 == 0 || pi == total - 1) {
+                    panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), lineBuf.c_str(), 0);
+                    panelText.UpdatePosition({statusX, lineY});
+                    SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+                    lineY += 16;
+                    lineCount++;
+                    lineBuf.clear();
+                }
+            }
+            // Flush any remaining partial line
+            if (!lineBuf.empty()) {
+                panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), lineBuf.c_str(), 0);
+                panelText.UpdatePosition({statusX, lineY});
+                SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+                lineY += 16;
+            }
+            // Show overflow count if more players than we displayed
+            int remaining = total - shown - 1; // -1 for self
+            if (remaining > 0) {
+                snprintf(playersText, sizeof(playersText), "+%d more", remaining);
+                panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), playersText, 0);
+                panelText.UpdatePosition({statusX, lineY});
+                SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
+            }
         }
-        panelText.UpdateText(const_cast<SDL_Renderer*>(renderer), playersText, 0);
-        panelText.UpdatePosition({statusX, statusY + 16});
-        SDL_RenderCopy(const_cast<SDL_Renderer*>(renderer), panelText.Texture(), nullptr, panelText.Coords());
 
         return;
     }

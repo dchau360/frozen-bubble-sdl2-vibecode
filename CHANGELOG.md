@@ -3,6 +3,8 @@
 ## v2.4.16
 
 - **Nickname saved** — last used nickname is remembered across restarts on desktop, Android, and web (browser uses localStorage)
+- **Lobby player list** — in-lobby screen now shows names of available players (up to 9, with "+N more" for overflow)
+- **Nick save fixes** — Set Name field clears before typing; nick saves immediately on confirm, not just on connect
 
 ## v2.4.15
 
