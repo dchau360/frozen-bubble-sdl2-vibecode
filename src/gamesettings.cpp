@@ -121,6 +121,7 @@ void GameSettings::CreateDefaultSettings()
 #else
         EvalIniResult(rval, dict, "Keys:SpeedMultiplier", "2.0");
 #endif
+        EvalIniResult(rval, dict, "Keys:Nickname", "");
         EvalIniResult(rval, dict, "Keys:P1Left", "80");      // SDL_SCANCODE_LEFT
         EvalIniResult(rval, dict, "Keys:P1Right", "79");     // SDL_SCANCODE_RIGHT
         EvalIniResult(rval, dict, "Keys:P1Fire", "82");      // SDL_SCANCODE_UP
@@ -190,6 +191,11 @@ void GameSettings::ReadSettings()
     if (speedMultiplier < 1.0f) speedMultiplier = 1.0f;
     if (speedMultiplier > 5.0f) speedMultiplier = 5.0f;
 
+#ifndef __WASM_PORT__
+    const char* nick = iniparser_getstring(optDict, "Keys:Nickname", "");
+    if (nick) snprintf(savedNickname, sizeof(savedNickname), "%s", nick);
+#endif
+
     LoadDefaultKeys();
 }
 
@@ -229,6 +235,10 @@ void GameSettings::SaveKeys()
     char speedBuf[16];
     snprintf(speedBuf, sizeof(speedBuf), "%.2f", speedMultiplier);
     iniparser_set(optDict, "Keys:SpeedMultiplier", speedBuf);
+
+#ifndef __WASM_PORT__
+    iniparser_set(optDict, "Keys:Nickname", savedNickname);
+#endif
 
     iniparser_set(optDict, "Keys:P1Left", std::to_string(player1Keys.left).c_str());
     iniparser_set(optDict, "Keys:P1Right", std::to_string(player1Keys.right).c_str());

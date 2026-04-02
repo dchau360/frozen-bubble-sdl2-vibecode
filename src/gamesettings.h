@@ -86,6 +86,8 @@ public:
     // Default: 2.0 on desktop, 1.25 on Android.
     float speedMultiplier = 2.0f;
 
+    char savedNickname[32] = "";
+
     GameSettings(const GameSettings& obj) = delete;
     void Dispose();
     static GameSettings* Instance(){

@@ -41,6 +41,10 @@
 #include <netdb.h>
 #endif
 #endif
+#ifdef __WASM_PORT__
+#include <emscripten.h>
+#include <stdlib.h>
+#endif
 
 // Virtual scancodes for controller buttons: CTRL_SC_BASE + controllerSlot*20 + SDL_GameControllerButton
 static SDL_Scancode ControllerButtonScancode(int controllerSlot, SDL_GameControllerButton btn) {
@@ -193,6 +197,29 @@ MainMenu::MainMenu(const SDL_Renderer *renderer)
         snprintf(rel, sizeof(rel), "/gfx/netspot-self-%s.png", selfSpotFrames[i]);
         netSpotSelf[i] = IMG_LoadTexture(rend, ASSET(rel).c_str());
     }
+
+    // Restore last used nickname
+#ifdef __WASM_PORT__
+    {
+        char* wasmNick = (char*)EM_ASM_PTR({
+            var n = localStorage.getItem('fb_nickname');
+            if (!n || n.length === 0) return 0;
+            var len = lengthBytesUTF8(n) + 1;
+            var buf = _malloc(len);
+            stringToUTF8(n, buf, len);
+            return buf;
+        });
+        if (wasmNick) {
+            snprintf(networkPreNick, sizeof(networkPreNick), "%s", wasmNick);
+            free(wasmNick);
+        }
+    }
+#else
+    {
+        const char* saved = GameSettings::Instance()->savedNickname;
+        if (saved[0] != '\0') snprintf(networkPreNick, sizeof(networkPreNick), "%s", saved);
+    }
+#endif
 }
 
 MainMenu::~MainMenu() {
@@ -1224,6 +1251,13 @@ void MainMenu::HandleInput(SDL_Event *e){
 #endif
                             }
                             if (netClient->SendNick(nickname)) {
+#ifdef __WASM_PORT__
+                                EM_ASM({ localStorage.setItem('fb_nickname', UTF8ToString($0)); }, nickname);
+#else
+                                GameSettings* gsn = GameSettings::Instance();
+                                snprintf(gsn->savedNickname, sizeof(gsn->savedNickname), "%s", nickname);
+                                gsn->SaveKeys();
+#endif
                                 SDL_Delay(100);
                                 std::string geoLoc = NetworkClient::DetectGeoLocation();
                                 // Parse for own spot rendering
@@ -1956,6 +1990,13 @@ void MainMenu::NetPanelRender() {
 #endif
         }
         if (netClient->SendNick(nickname)) {
+#ifdef __WASM_PORT__
+            EM_ASM({ localStorage.setItem('fb_nickname', UTF8ToString($0)); }, nickname);
+#else
+            GameSettings* gsn = GameSettings::Instance();
+            snprintf(gsn->savedNickname, sizeof(gsn->savedNickname), "%s", nickname);
+            gsn->SaveKeys();
+#endif
             std::string geoLoc = NetworkClient::DetectGeoLocation();
             float gLat = 0.0f, gLon = 0.0f;
             if (sscanf(geoLoc.c_str(), "%f:%f", &gLat, &gLon) == 2) {
