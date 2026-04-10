@@ -1,4 +1,7 @@
 # Frozen-Bubble: SDL2
+
+> **This project has been fully ported to SDL3.** New development continues at [**frozen-bubble-sdl3**](https://github.com/dchau360/frozen-bubble-sdl3). This SDL2 repository is no longer actively maintained.
+
 <p align="center">
   <img src="https://github.com/user-attachments/assets/c68db5c9-7e72-4d19-8e98-c598a3f5e54e">
 </p>
